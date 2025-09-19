@@ -55,7 +55,7 @@ class BottomNavigation extends StatelessWidget {
             ),
             BottomNavigationBarItem(
               icon: _buildNavIcon(Icons.calendar_today, 1),
-              label: '视图',
+              label: '任务',
             ),
             BottomNavigationBarItem(
               icon: _buildNavIcon(Icons.edit_note, 2),

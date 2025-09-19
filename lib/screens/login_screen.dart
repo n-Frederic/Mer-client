@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -219,12 +220,26 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       setState(() {
         _isLoading = true;
       });
-      
-      // 模拟登录过程
-      await Future.delayed(Duration(seconds: 2));
-      
-      if (mounted) {
+
+      final username = _usernameController.text.trim();
+      final password = _passwordController.text.trim();
+
+      final token = await AuthService.login(username, password);
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (token != null) {
+        // 登录成功 → 跳转到主页
         Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        // 登录失败 → 弹出提示
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("用户名或密码错误")),
+        );
       }
     }
   }
