@@ -1,23 +1,28 @@
 import 'package:flutter/material.dart';
-
-enum TaskStatus { pending, inProgress, completed }
+import 'package:image_picker/image_picker.dart';
+import 'package:geolocator/geolocator.dart';
+import 'dart:io';
+import 'task_detail_view.dart';
+import 'enums.dart';
 
 class CalendarView extends StatefulWidget {
   @override
   _CalendarViewState createState() => _CalendarViewState();
 }
 
-class _CalendarViewState extends State<CalendarView>
-    with SingleTickerProviderStateMixin {
-  String _viewMode = 'month'; // 当前视图模式
-  DateTime _currentDate = DateTime.now(); // 当前日期
+class _CalendarViewState extends State<CalendarView> with SingleTickerProviderStateMixin {
+  String _viewMode = 'month';
+  DateTime _currentDate = DateTime.now();
   late TabController _tabController;
+  UserRole _currentUserRole = UserRole.teamLeader;
+  String _currentUserId = '张三';
+  Map<String, dynamic>? _currentTask;
 
   @override
   void initState() {
     super.initState();
     _loadTasks();
-    _tabController = TabController(length: 2, vsync: this); // 正确初始化TabController
+    _tabController = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -26,20 +31,12 @@ class _CalendarViewState extends State<CalendarView>
     super.dispose();
   }
 
-  // 任务数据
   List<Map<String, dynamic>> _events = [];
-
-  Map<String, dynamic> _currentTask = {
-    'color': Colors.blue,
-    'emoji': '📌',
-    'title': '默认任务',
-    'date': DateTime.now(),
-    'time': null,
-  };
 
   void _loadTasks() {
     _events = [
       {
+        'id': '1',
         'date': DateTime.now().add(Duration(days: 3)),
         'title': '完成Q4季度报告',
         'time': '09:00',
@@ -49,83 +46,28 @@ class _CalendarViewState extends State<CalendarView>
         'status': TaskStatus.inProgress,
         'progress': 0.6,
         'owner': '张三',
+        'assignedTo': '张三',
         'collaborators': ['李四', '王五'],
         'log': '2025-09-10: 任务分配\n2025-09-15: 进行中',
-      },
-      {
-        'date': DateTime.now().add(Duration(days: 7)),
-        'title': '新员工培训计划',
-        'time': '14:00',
-        'color': Color(0xFF4ECDC4),
-        'emoji': '📚',
-        'type': 'training',
-        'status': TaskStatus.pending,
-        'progress': 0.2,
-        'owner': '赵六',
-        'collaborators': ['孙七'],
-        'log': '2025-09-12: 计划制定',
-      },
-      {
-        'date': DateTime.now().subtract(Duration(days: 1)),
-        'title': '客户服务流程优化',
-        'time': '16:00',
-        'color': Color(0xFFFFE66D),
-        'emoji': '🤝',
-        'type': 'client',
-        'status': TaskStatus.completed,
-        'progress': 1.0,
-        'owner': '钱八',
-        'collaborators': ['周九', '吴十'],
-        'log': '2025-09-14: 优化完成',
-      },
-      {
-        'date': DateTime.now().add(Duration(days: 1)),
-        'title': '项目会议',
-        'time': '09:00',
-        'color': Color(0xFFFF6B9D),
-        'emoji': '💼',
-        'type': 'meeting',
-        'status': TaskStatus.inProgress,
-        'progress': 0.4,
-        'owner': '李四',
-        'collaborators': ['张三'],
-        'log': '2025-09-16: 会议安排',
-      },
-      {
-        'date': DateTime.now().add(Duration(days: 5)),
-        'title': '团队建设',
-        'time': '15:00',
-        'color': Color(0xFFB8A9FF),
-        'emoji': '🎉',
-        'type': 'team',
-        'status': TaskStatus.pending,
-        'progress': 0.0,
-        'owner': '孙七',
-        'collaborators': ['赵六'],
-        'log': '2025-09-17: 计划中',
-      },
-      {
-        'date': DateTime.now().add(Duration(days: 10)),
-        'title': '代码评审',
-        'time': '11:00',
-        'color': Color(0xFFFFB3BA),
-        'emoji': '👨‍💻',
-        'type': 'review',
-        'status': TaskStatus.inProgress,
-        'progress': 0.8,
-        'owner': '周九',
-        'collaborators': ['钱八'],
-        'log': '2025-09-15: 评审开始',
+        'description': '完成第四季度的详细业务报告，包括销售数据分析和市场趋势预测',
+        'subtasks': [
+          {'id': 's1', 'title': '收集销售数据', 'completed': true, 'assignedTo': '张三'},
+          {'id': 's2', 'title': '分析市场趋势', 'completed': false, 'assignedTo': '李四'},
+          {'id': 's3', 'title': '撰写报告', 'completed': false, 'assignedTo': '张三'},
+        ],
+        'checkIns': [
+          {'userId': '张三', 'timestamp': DateTime.now().subtract(Duration(hours: 2)), 'photo': null, 'location': '北京市朝阳区', 'note': '数据收集完成'},
+        ],
+        'requiresLocationCheckIn': true,
+        'requiresPhotoCheckIn': true,
       },
     ];
   }
 
-  // 日期比较工具方法
   bool _isSameDate(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
-  // 判断日期是否在当前周内
   bool _isInCurrentWeek(DateTime date) {
     final startOfWeek = _currentDate.subtract(Duration(days: _currentDate.weekday - 1));
     final endOfWeek = startOfWeek.add(Duration(days: 6));
@@ -135,6 +77,64 @@ class _CalendarViewState extends State<CalendarView>
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Color(0xFFF8F9FA),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildCalendarView(),
+                  _buildTaskListView(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAddTaskDialog,
+        child: Icon(Icons.add),
+        backgroundColor: Color(0xFFFF8C42),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          TabBar(
+            controller: _tabController,
+            labelColor: Color(0xFFFF8C42),
+            unselectedLabelColor: Color(0xFF999999),
+            indicatorColor: Color(0xFFFF8C42),
+            tabs: [
+              Tab(text: '日历视图'),
+              Tab(text: '任务详情'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalendarView() {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -148,9 +148,9 @@ class _CalendarViewState extends State<CalendarView>
       ),
       child: Column(
         children: [
-          // 新增的模块切换TabBar
+          // 视图切换按钮
           Container(
-            margin: EdgeInsets.all(16),
+            margin: EdgeInsets.symmetric(horizontal: 16),
             padding: EdgeInsets.all(4),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -163,73 +163,24 @@ class _CalendarViewState extends State<CalendarView>
                 ),
               ],
             ),
-            child: TabBar(
-              controller: _tabController,
-              indicator: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFFFF6B9D), Color(0xFFFFE66D)],
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              labelColor: Colors.white,
-              unselectedLabelColor: Color(0xFF666666),
-              tabs: [
-                Tab(child: SizedBox(width: 150, child: Center(child: Text('视图')))),
-                Tab(child: SizedBox(width: 150, child: Center(child: Text('任务管理')))),
+            child: Row(
+              children: [
+                _buildViewModeButton('day', '日视图', Icons.today, Color(0xFFFF6B9D)),
+                _buildViewModeButton('week', '周视图', Icons.calendar_view_week, Color(0xFFFF9F51)),
+                _buildViewModeButton('month', '月视图', Icons.calendar_view_month, Color(0xFF4ECDC4)),
               ],
-              indicatorPadding: EdgeInsets.zero,
-              labelPadding: EdgeInsets.zero,
-              dividerColor: Colors.transparent, // 移除横线
             ),
           ),
-          // 视图内容区域
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                // 视图页面
-                Column(
-                  children: [
-                    // 视图切换按钮
-                    Container(
-                      margin: EdgeInsets.symmetric(horizontal: 16),
-                      padding: EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 12,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          _buildViewModeButton('day', '日视图', Icons.today, Color(0xFFFF6B9D)),
-                          _buildViewModeButton('week', '周视图', Icons.calendar_view_week, Color(0xFFFF9F51)),
-                          _buildViewModeButton('month', '月视图', Icons.calendar_view_month, Color(0xFF4ECDC4)),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: AnimatedSwitcher(
-                        duration: Duration(milliseconds: 400), // 动画时长保持不变
-                        transitionBuilder: (Widget child, Animation<double> animation) {
-                          return FadeTransition(
-                            opacity: animation, // 使用淡入淡出效果
-                            child: child,
-                          );
-                        },
-                        child: _buildCurrentView(),
-                      ),
-                    ),
-                  ],
-                ),
-                // 任务管理页面
-                _buildTaskManagementView(),
-              ],
+            child: AnimatedSwitcher(
+              duration: Duration(milliseconds: 400),
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: child,
+                );
+              },
+              child: _buildCurrentView(),
             ),
           ),
         ],
@@ -290,7 +241,6 @@ class _CalendarViewState extends State<CalendarView>
     );
   }
 
-  // 关键修复：确保每个视图返回不同的Widget实例
   Widget _buildCurrentView() {
     switch (_viewMode) {
       case 'day':
@@ -315,8 +265,7 @@ class _CalendarViewState extends State<CalendarView>
 
   Widget _buildDayView() {
     final today = DateTime.now();
-    final todayEvents = _events.where((event) =>
-        _isSameDate(event['date'], today)).toList();
+    final todayEvents = _events.where((event) => _isSameDate(event['date'], today)).toList();
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(16),
@@ -421,8 +370,10 @@ class _CalendarViewState extends State<CalendarView>
           else
             ...todayEvents.map((event) => GestureDetector(
               onTap: () {
-                _tabController.animateTo(1); // 切换到任务管理Tab
-                _showTaskDetail(event); // 显示任务详情
+                setState(() {
+                  _currentDate = event['date'];
+                  _tabController.animateTo(1);
+                });
               },
               child: Container(
                 margin: EdgeInsets.only(bottom: 16),
@@ -505,9 +456,7 @@ class _CalendarViewState extends State<CalendarView>
                         value: event['progress'],
                         backgroundColor: Colors.grey[300],
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          event['status'] == TaskStatus.completed
-                              ? Colors.green
-                              : Colors.blue,
+                          event['status'] == TaskStatus.completed ? Colors.green : Colors.blue,
                         ),
                       ),
                       SizedBox(height: 4),
@@ -608,8 +557,10 @@ class _CalendarViewState extends State<CalendarView>
                 else
                   ...dayEvents.map((event) => GestureDetector(
                     onTap: () {
-                      _tabController.animateTo(1); // 切换到任务管理Tab
-                      _showTaskDetail(event); // 显示任务详情
+                      setState(() {
+                        _currentDate = event['date'];
+                        _tabController.animateTo(1);
+                      });
                     },
                     child: Padding(
                       padding: EdgeInsets.symmetric(vertical: 8),
@@ -798,7 +749,10 @@ class _CalendarViewState extends State<CalendarView>
     return GestureDetector(
       onTap: () {
         if (hasEvent) {
-          _showDayEvents(date);
+          setState(() {
+            _currentDate = date;
+            _tabController.animateTo(1);
+          });
         }
       },
       child: Container(
@@ -848,9 +802,11 @@ class _CalendarViewState extends State<CalendarView>
   }
 
   Widget _buildMonthEventsPreview() {
-    final monthEvents = _events.where((event) =>
+    final monthEvents = _events
+        .where((event) =>
     event['date'].year == _currentDate.year &&
-        event['date'].month == _currentDate.month).toList();
+        event['date'].month == _currentDate.month)
+        .toList();
 
     if (monthEvents.isEmpty) {
       return Container(
@@ -910,9 +866,9 @@ class _CalendarViewState extends State<CalendarView>
           SizedBox(height: 16),
           ...monthEvents.take(5).map((event) => GestureDetector(
             onTap: () {
-              _tabController.animateTo(1); // 跳转到任务管理
               setState(() {
-                _currentTask = event;
+                _currentDate = event['date'];
+                _tabController.animateTo(1);
               });
             },
             child: Container(
@@ -964,141 +920,6 @@ class _CalendarViewState extends State<CalendarView>
               ),
             ),
         ],
-      ),
-    );
-  }
-
-  void _showDayEvents(DateTime date) {
-    final dayEvents = _events.where((event) =>
-        _isSameDate(event['date'], date)).toList();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.all(20),
-              child: Text(
-                '${date.month}月${date.day}日 任务',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF333333),
-                ),
-              ),
-            ),
-            Expanded(
-              child: ListView.builder(
-                padding: EdgeInsets.symmetric(horizontal: 20),
-                itemCount: dayEvents.length,
-                itemBuilder: (context, index) {
-                  final event = dayEvents[index];
-                  return GestureDetector(
-                    onTap: () {
-                      _tabController.animateTo(1); // 切换到任务管理Tab
-                      _showTaskDetail(event); // 显示任务详情
-                    },
-                    child: Container(
-                      margin: EdgeInsets.only(bottom: 16),
-                      padding: EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: event['color'].withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: event['color'].withOpacity(0.3),
-                          width: 1,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 50,
-                                height: 50,
-                                decoration: BoxDecoration(
-                                  color: event['color'],
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    event['emoji'],
-                                    style: TextStyle(fontSize: 24),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      event['title'],
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF333333),
-                                      ),
-                                    ),
-                                    SizedBox(height: 4),
-                                    Text(
-                                      event['time'] ?? '未设置时间',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Color(0xFF666666),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              _buildStatusChip(event['status']),
-                            ],
-                          ),
-                          SizedBox(height: 12),
-                          LinearProgressIndicator(
-                            value: event['progress'],
-                            backgroundColor: Colors.grey[300],
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              event['status'] == TaskStatus.completed
-                                  ? Colors.green
-                                  : Colors.blue,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            '进度: ${(event['progress'] * 100).toInt()}%',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF666666),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1159,159 +980,363 @@ class _CalendarViewState extends State<CalendarView>
     return weekdays[weekday - 1];
   }
 
-
-  Widget _buildTaskManagementView() {
-    final monthEvents = _events.where((event) =>
-    event['date'].year == _currentDate.year &&
-        event['date'].month == _currentDate.month).toList();
-
+  Widget _buildTaskListView() {
+    final tasks = _events.where((e) => _isSameDate(e['date'], _currentDate)).toList();
     return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '任务详情',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF333333),
+          Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              ' ${_currentDate.year}年${_currentDate.month}月${_currentDate.day}日 任务',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF333333)),
             ),
           ),
-          SizedBox(height: 16),
-          if (_currentTask != null)
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: _currentTask['color'],
-                          borderRadius: BorderRadius.circular(16),
+          if (tasks.isEmpty)
+            Center(child: Text('当天无任务', style: TextStyle(color: Color(0xFF666666))))
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: NeverScrollableScrollPhysics(),
+              itemCount: tasks.length,
+              itemBuilder: (context, index) {
+                final event = tasks[index];
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _currentTask = event;
+                    });
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TaskDetailView(
+                          task: event,
+                          userRole: _currentUserRole,
+                          currentUserId: _currentUserId,
+                          onTaskUpdated: (updatedTask) {
+                            setState(() {
+                              final index = _events.indexWhere((e) => e['id'] == updatedTask['id']);
+                              if (index != -1) {
+                                _events[index] = updatedTask;
+                              }
+                              _currentTask = updatedTask;
+                            });
+                          },
                         ),
-                        child: Center(
-                          child: Text(
-                            _currentTask['emoji'],
-                            style: TextStyle(fontSize: 28),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4)),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: event['color'],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(child: Text(event['emoji'], style: TextStyle(fontSize: 20))),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                event['title'],
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                '${event['time']} · 进度: ${(event['progress'] * 100).toInt()}%',
+                                style: TextStyle(fontSize: 12, color: Color(0xFF666666)),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _currentTask['title'],
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF333333),
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              '日期: ${_currentTask['date'].month}月${_currentTask['date'].day}日 ${_currentTask['time'] ?? '未设置时间'}',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF666666),
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              '类型: ${_currentTask['type'] ?? '未知'}',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF666666),
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              '负责人: ${_currentTask['owner'] ?? '未指定'}',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF666666),
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              '协作者: ${_currentTask['collaborators']?.join(', ') ?? '无'}',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF666666),
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              '日志: ${_currentTask['log'] ?? '无记录'}',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF666666),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 16),
-                  LinearProgressIndicator(
-                    value: (_currentTask['progress'] ?? 0.0).clamp(0.0, 1.0),
-                    backgroundColor: Colors.grey[300],
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      _currentTask['status'] == TaskStatus.completed
-                          ? Colors.green
-                          : Colors.blue,
+                      ],
                     ),
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    '进度: ${((_currentTask['progress'] ?? 0.0) * 100).toInt()}%',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF666666),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  _buildStatusChip(_currentTask['status'] ?? TaskStatus.pending),
-                ],
-              ),
-            )
-          else
-            Center(
-              child: Text(
-                '请选择一个任务以查看详情',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFF999999),
-                ),
-              ),
+                );
+              },
             ),
         ],
       ),
     );
   }
 
-  // 显示任务详情
-  void _showTaskDetail(Map<String, dynamic> task) {
-    setState(() {
-      _currentTask = task;
-    });
+  Future<void> _handleCheckIn() async {
+    showDialog(
+      context: context,
+      builder: (context) {
+        File? capturedImage;
+        Position? currentPosition;
+        String? locationAddress;
+        final noteController = TextEditingController();
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text('任务打卡'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.camera_alt, color: capturedImage != null ? Colors.green : Colors.grey),
+                              SizedBox(width: 8),
+                              Text('1. 拍照 *', style: TextStyle(fontWeight: FontWeight.w500)),
+                              Spacer(),
+                              if (capturedImage != null)
+                                Icon(Icons.check_circle, color: Colors.green, size: 20),
+                            ],
+                          ),
+                          SizedBox(height: 8),
+                          if (capturedImage != null)
+                            Image.file(capturedImage!, height: 100)
+                          else
+                            ElevatedButton.icon(
+                              onPressed: () async {
+                                final ImagePicker picker = ImagePicker();
+                                final XFile? photo = await picker.pickImage(source: ImageSource.camera);
+                                if (photo != null) {
+                                  setDialogState(() {
+                                    capturedImage = File(photo.path);
+                                  });
+                                }
+                              },
+                              icon: Icon(Icons.camera_alt),
+                              label: Text('拍照'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Color(0xFFFF8C42),
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.location_on, color: currentPosition != null ? Colors.green : Colors.grey),
+                              SizedBox(width: 8),
+                              Text('2. 获取位置 *', style: TextStyle(fontWeight: FontWeight.w500)),
+                              Spacer(),
+                              if (currentPosition != null)
+                                Icon(Icons.check_circle, color: Colors.green, size: 20),
+                            ],
+                          ),
+                          SizedBox(height: 8),
+                          if (currentPosition != null)
+                            Text(
+                              locationAddress ?? '${currentPosition!.latitude.toStringAsFixed(4)}, ${currentPosition!.longitude.toStringAsFixed(4)}',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            )
+                          else
+                            ElevatedButton.icon(
+                              onPressed: () async {
+                                try {
+                                  LocationPermission permission = await Geolocator.checkPermission();
+                                  if (permission == LocationPermission.denied) {
+                                    permission = await Geolocator.requestPermission();
+                                  }
+                                  if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+                                    Position position = await Geolocator.getCurrentPosition();
+                                    setDialogState(() {
+                                      currentPosition = position;
+                                      locationAddress = '北京市朝阳区';
+                                    });
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('请授予位置权限')),
+                                    );
+                                  }
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('定位失败: $e')),
+                                  );
+                                }
+                              },
+                              icon: Icon(Icons.location_on),
+                              label: Text('获取位置'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Color(0xFFFF8C42),
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    TextField(
+                      controller: noteController,
+                      decoration: InputDecoration(
+                        labelText: '备注',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 3,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('取消'),
+                ),
+                ElevatedButton(
+                  onPressed: (capturedImage != null && currentPosition != null)
+                      ? () {
+                    Navigator.pop(context);
+                    setState(() {
+                      _currentTask!['checkIns'].add({
+                        'userId': _currentUserId,
+                        'timestamp': DateTime.now(),
+                        'photo': capturedImage!.path,
+                        'location': locationAddress ?? '${currentPosition!.latitude}, ${currentPosition!.longitude}',
+                        'note': noteController.text.isNotEmpty ? noteController.text : '任务打卡'
+                      });
+                      final eventIndex = _events.indexWhere((e) => e['id'] == _currentTask!['id']);
+                      if (eventIndex != -1) {
+                        _events[eventIndex] = _currentTask!;
+                      }
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('打卡成功')),
+                    );
+                  }
+                      : null,
+                  child: Text('完成打卡'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFFFF8C42),
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showAddTaskDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final titleController = TextEditingController();
+        final descriptionController = TextEditingController();
+        final timeController = TextEditingController();
+        DateTime selectedDate = _currentDate;
+
+        return AlertDialog(
+          title: Text('添加任务'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  decoration: InputDecoration(labelText: '任务标题'),
+                ),
+                TextField(
+                  controller: descriptionController,
+                  decoration: InputDecoration(labelText: '任务描述'),
+                ),
+                TextField(
+                  controller: timeController,
+                  decoration: InputDecoration(labelText: '时间 (例: 09:00)'),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    final DateTime? picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2030),
+                    );
+                    if (picked != null) {
+                      selectedDate = picked;
+                    }
+                  },
+                  child: Text('选择日期: ${selectedDate.toString().substring(0, 10)}'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (titleController.text.isNotEmpty && timeController.text.isNotEmpty) {
+                  setState(() {
+                    _events.add({
+                      'id': '${_events.length + 1}',
+                      'date': selectedDate,
+                      'title': titleController.text,
+                      'description': descriptionController.text,
+                      'time': timeController.text,
+                      'color': Color(0xFFFF6B9D),
+                      'emoji': '📋',
+                      'type': 'task',
+                      'status': TaskStatus.pending,
+                      'progress': 0.0,
+                      'owner': _currentUserId,
+                      'assignedTo': _currentUserId,
+                      'collaborators': [],
+                      'log': '${DateTime.now().toString().substring(0, 10)}: 任务创建',
+                      'subtasks': [],
+                      'checkIns': [],
+                      'requiresLocationCheckIn': true,
+                      'requiresPhotoCheckIn': true,
+                    });
+                  });
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('任务添加成功')),
+                  );
+                }
+              },
+              child: Text('添加'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFFFF8C42),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }

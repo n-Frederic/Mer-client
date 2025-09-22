@@ -198,18 +198,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                 ),
                 SizedBox(height: 16),
 
-                // 板块切换 (顶部 Tab)
-                Row(
-                  children: [
-                    _buildScopeTab('personal', '👥 个人板块', Color(0xFF667eea)),
-                    SizedBox(width: 8),
-                    _buildScopeTab('company', '🏢 公司板块', Color(0xFF4ECDC4)),
-                    SizedBox(width: 8),
-                    _buildScopeTab('external', '🌐 其他公司', Color(0xFF764ba2)),
-                  ],
-                ),
-                SizedBox(height: 12),
-
                 // 搜索框
                 Container(
                   decoration: BoxDecoration(
