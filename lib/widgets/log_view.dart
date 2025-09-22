@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'log_view_detail.dart';
 
 class LogView extends StatefulWidget {
   @override
@@ -13,7 +14,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
   String _selectedMember = '';
   String _searchTerm = '';
 
-  // 当前用户信息
+// 当前用户信息
   final Map<String, dynamic> _currentUser = {
     'name': '张小兔',
     'role': '团队长',
@@ -23,7 +24,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
     'canRequestApproval': true,
   };
 
-  // 团队成员
+// 团队成员
   final List<Map<String, dynamic>> _teamMembers = [
     {'id': '1', 'name': '小王', 'avatar': '🐱'},
     {'id': '2', 'name': '小李', 'avatar': '🐶'},
@@ -94,7 +95,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
       ),
       child: Column(
         children: [
-          // 用户信息头部
           Container(
             padding: EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -109,7 +109,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
             ),
             child: Column(
               children: [
-                // 用户基本信息
                 Row(
                   children: [
                     Container(
@@ -120,7 +119,8 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                         borderRadius: BorderRadius.circular(25),
                       ),
                       child: Center(
-                        child: Text(_currentUser['avatar'], style: TextStyle(fontSize: 24)),
+                        child: Text(_currentUser['avatar'],
+                            style: TextStyle(fontSize: 24)),
                       ),
                     ),
                     SizedBox(width: 12),
@@ -146,11 +146,11 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                         ],
                       ),
                     ),
-                    // 权限标识
                     if (_currentUser['canViewSubordinates'])
                       Container(
                         margin: EdgeInsets.only(right: 8),
-                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: Color(0xFF4ECDC4).withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
@@ -158,7 +158,8 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.arrow_downward, size: 12, color: Color(0xFF4ECDC4)),
+                            Icon(Icons.arrow_downward,
+                                size: 12, color: Color(0xFF4ECDC4)),
                             SizedBox(width: 4),
                             Text(
                               '可查看下级',
@@ -173,7 +174,8 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                       ),
                     if (_currentUser['canRequestApproval'])
                       Container(
-                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: Color(0xFF667eea).withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
@@ -181,15 +183,15 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.arrow_upward, size: 12, color: Color(0xFF667eea)),
+                            Icon(Icons.arrow_upward,
+                                size: 12, color: Color(0xFF667eea)),
                             SizedBox(width: 4),
                             Text(
                               '可申请审批',
                               style: TextStyle(
-                                fontSize: 10,
-                                color: Color(0xFF667eea),
-                                fontWeight: FontWeight.w600,
-                              ),
+                                  fontSize: 10,
+                                  color: Color(0xFF667eea),
+                                  fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
@@ -197,8 +199,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                   ],
                 ),
                 SizedBox(height: 16),
-
-                // 搜索框
                 Container(
                   decoration: BoxDecoration(
                     color: Color(0xFFF5F5F5),
@@ -212,16 +212,17 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                     },
                     decoration: InputDecoration(
                       hintText: '搜索日志...',
-                      hintStyle: TextStyle(color: Color(0xFF999999), fontSize: 14),
-                      prefixIcon: Icon(Icons.search, color: Color(0xFF999999), size: 20),
+                      hintStyle:
+                          TextStyle(color: Color(0xFF999999), fontSize: 14),
+                      prefixIcon: Icon(Icons.search,
+                          color: Color(0xFF999999), size: 20),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
                   ),
                 ),
                 SizedBox(height: 12),
-
-                // 固定筛选条件 - 模式
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   padding: EdgeInsets.symmetric(horizontal: 16),
@@ -240,9 +241,8 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                   ),
                 ),
                 SizedBox(height: 8),
-
-                // 固定筛选条件 - 成员（仅在成员日志模式下显示）
-                if (_selectedMode == 'member' && _currentUser['canViewSubordinates'])
+                if (_selectedMode == 'member' &&
+                    _currentUser['canViewSubordinates'])
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     padding: EdgeInsets.symmetric(horizontal: 16),
@@ -250,16 +250,19 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                       children: _teamMembers.map((member) {
                         return Row(
                           children: [
-                            _buildMemberButton(member['id'], '${member['avatar']} ${member['name']}', Color(0xFFFF8C42)),
+                            _buildMemberButton(
+                                member['id'],
+                                '${member['avatar']} ${member['name']}',
+                                Color(0xFFFF8C42)),
                             SizedBox(width: 8),
                           ],
                         );
                       }).toList(),
                     ),
                   ),
-                if (_selectedMode == 'member' && _currentUser['canViewSubordinates']) SizedBox(height: 8),
-
-                // 固定筛选条件 - 时间范围
+                if (_selectedMode == 'member' &&
+                    _currentUser['canViewSubordinates'])
+                  SizedBox(height: 8),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   padding: EdgeInsets.symmetric(horizontal: 16),
@@ -278,41 +281,10 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
               ],
             ),
           ),
-
-          // 日志列表
           Expanded(
             child: _buildLogList(),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildScopeTab(String scope, String label, Color color) {
-    bool isSelected = _selectedScope == scope;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _selectedScope = scope;
-          });
-        },
-        child: Container(
-          padding: EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: isSelected ? color : color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12,
-              color: isSelected ? Colors.white : color,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -322,7 +294,10 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
     return GestureDetector(
       onTap: () {
         setState(() {
-          if (value == 'my' || value == 'team' || value == 'member' || value == 'approval') {
+          if (value == 'my' ||
+              value == 'team' ||
+              value == 'member' ||
+              value == 'approval') {
             _selectedMode = value;
             if (_selectedMode != 'member') _selectedMember = '';
           } else {
@@ -433,7 +408,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 作者信息和状态
             Row(
               children: [
                 Text(log['authorAvatar'], style: TextStyle(fontSize: 20)),
@@ -486,8 +460,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
               ],
             ),
             SizedBox(height: 12),
-
-            // 内容
             Text(
               log['content'],
               style: TextStyle(
@@ -499,35 +471,35 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
               overflow: TextOverflow.ellipsis,
             ),
             SizedBox(height: 12),
-
-            // 标签和操作
             Row(
               children: [
                 Expanded(
                   child: Wrap(
                     spacing: 6,
-                    children: (log['tags'] as List<String>).map((tag) =>
-                        Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Color(0xFFFFE66D).withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            tag,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Color(0xFFFF8C42),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                    ).toList(),
+                    children: (log['tags'] as List<String>)
+                        .map((tag) => Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Color(0xFFFFE66D).withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                tag,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Color(0xFFFF8C42),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ))
+                        .toList(),
                   ),
                 ),
                 IconButton(
                   onPressed: () => _showLogDetail(log),
-                  icon: Icon(Icons.visibility, size: 20, color: Color(0xFF999999)),
+                  icon: Icon(Icons.visibility,
+                      size: 20, color: Color(0xFF999999)),
                 ),
               ],
             ),
@@ -540,7 +512,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
   List<Map<String, dynamic>> _getFilteredLogs() {
     final now = DateTime.now();
     return _logs.where((log) {
-      // 搜索过滤
       if (_searchTerm.isNotEmpty) {
         if (!log['title'].toLowerCase().contains(_searchTerm.toLowerCase()) &&
             !log['content'].toLowerCase().contains(_searchTerm.toLowerCase())) {
@@ -548,14 +519,15 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
         }
       }
 
-      // 板块过滤
       bool scopeMatch = false;
       switch (_selectedScope) {
         case 'personal':
-          scopeMatch = log['scope'] == 'team' || log['author'] == _currentUser['name'];
+          scopeMatch =
+              log['scope'] == 'team' || log['author'] == _currentUser['name'];
           break;
         case 'company':
-          scopeMatch = log['scope'] == 'department' || log['scope'] == 'company';
+          scopeMatch =
+              log['scope'] == 'department' || log['scope'] == 'company';
           break;
         case 'external':
           scopeMatch = log['scope'] == 'external';
@@ -563,7 +535,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
       }
       if (!scopeMatch) return false;
 
-      // 模式过滤
       bool modeMatch = false;
       switch (_selectedMode) {
         case 'my':
@@ -575,7 +546,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
         case 'member':
           if (_selectedMember.isEmpty) return false;
           String memberName = _teamMembers.firstWhere(
-                (m) => m['id'] == _selectedMember,
+            (m) => m['id'] == _selectedMember,
             orElse: () => {'name': ''},
           )['name'];
           modeMatch = log['author'] == memberName;
@@ -588,7 +559,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
       }
       if (!modeMatch) return false;
 
-      // 时间过滤
       DateTime logDate = log['date'];
       bool timeMatch = false;
       switch (_selectedTimeFilter) {
@@ -603,7 +573,8 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
         case 'this_week':
           final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
           final endOfWeek = startOfWeek.add(Duration(days: 6));
-          timeMatch = logDate.isAfter(startOfWeek.subtract(Duration(microseconds: 1))) &&
+          timeMatch = logDate
+                  .isAfter(startOfWeek.subtract(Duration(microseconds: 1))) &&
               logDate.isBefore(endOfWeek.add(Duration(days: 1)));
           break;
         case 'this_year':
@@ -659,123 +630,10 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
   }
 
   void _showLogDetail(Map<String, dynamic> log) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.8,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(log['authorAvatar'], style: TextStyle(fontSize: 24)),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                log['title'],
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF333333),
-                                ),
-                              ),
-                              Text(
-                                '${log['author']} · ${_formatDate(log['date'])}',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Color(0xFF666666),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: _getStatusColor(log['status']),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            log['status'],
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 20),
-                    Container(
-                      width: double.infinity,
-                      padding: EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Color(0xFFFFF8E1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        log['content'],
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Color(0xFF333333),
-                          height: 1.5,
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: (log['tags'] as List<String>).map((tag) =>
-                          Container(
-                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [Color(0xFFFF8C42), Color(0xFFFFE66D)],
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              tag,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                      ).toList(),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LogDetailView(log: log),
       ),
     );
   }
