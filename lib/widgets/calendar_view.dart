@@ -74,25 +74,36 @@ class _CalendarViewState extends State<CalendarView> with SingleTickerProviderSt
     return date.isAfter(startOfWeek.subtract(Duration(days: 1))) &&
         date.isBefore(endOfWeek.add(Duration(days: 1)));
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFF8F9FA),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildCalendarView(),
-                  _buildTaskListView(),
-                ],
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFFFF8E1),          // 浅黄
+              Color(0xFFFFE66D).withAlpha(120), // 半透明橙
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              SizedBox(height: 12), // 留空隙，白色卡片浮起来
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildCalendarView(),
+                    _buildTaskListView(),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton(
@@ -103,36 +114,33 @@ class _CalendarViewState extends State<CalendarView> with SingleTickerProviderSt
     );
   }
 
+
   Widget _buildHeader() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          TabBar(
-            controller: _tabController,
-            labelColor: Color(0xFFFF8C42),
-            unselectedLabelColor: Color(0xFF999999),
-            indicatorColor: Color(0xFFFF8C42),
-            tabs: [
-              Tab(text: '日历视图'),
-              Tab(text: '任务详情'),
-            ],
-          ),
-        ],
+    return Padding(
+      padding: EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+        ),
+        child: Column(
+          children: [
+            TabBar(
+              controller: _tabController,
+              labelColor: Color(0xFFFF8C42),
+              unselectedLabelColor: Color(0xFF999999),
+              indicatorColor: Color(0xFFFF8C42),
+              tabs: [
+                Tab(text: '日历视图'),
+                Tab(text: '任务详情'),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
+
 
   Widget _buildCalendarView() {
     return Container(

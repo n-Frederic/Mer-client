@@ -14,7 +14,7 @@ class PandoraApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'MER',
+      title: 'Pandora',
       theme: ThemeData(
         primarySwatch: Colors.orange,
         primaryColor: Color(0xFFFF8C42),
