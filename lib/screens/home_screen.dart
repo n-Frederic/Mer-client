@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/bottom_navigation.dart';
 import '../widgets/eisenhower_matrix.dart';
-import '../widgets/calendar_view.dart';
+import '../widgets/task_view.dart';
 import '../widgets/log_view.dart';
 import '../widgets/analytics_view.dart';
 import '../widgets/profile_view.dart';
@@ -36,11 +36,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   ];
 
   final List<String> _titles = [
-    'MER',
-    'MER',
-    'MER',
-    'MER',
-    'MER',
+    'Pandora',
+    'Pandora',
+    'Pandora',
+    'Pandora',
+    'Pandora',
   ];
 
   @override
@@ -92,21 +92,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           );
         },
       ),
-      floatingActionButton: _currentIndex == 0 ? Container(
-        margin: EdgeInsets.only(bottom: 20), // 添加底部边距，让按钮向上移动
-        child: ScaleTransition(
-          scale: _fabAnimationController,
-          child: FloatingActionButton(
-            onPressed: () {
-              _showAddDialog();
-            },
-            backgroundColor: Color(0xFFFF6B9D),
-            child: Icon(Icons.add, color: Colors.white, size: 28),
-            elevation: 8,
-          ),
-        ),
-      ) : null, // 只在第一个页面（导图页）显示
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat, // 改为 centerFloat 让按钮浮动
+      floatingActionButton: [0, 1, 2, 3].contains(_currentIndex)
+          ? Container(
+              // 修改条件：FAB在索引0,1,2,3显示
+              margin: EdgeInsets.only(bottom: 20), // 添加底部边距，让按钮向上移动
+              child: ScaleTransition(
+                scale: _fabAnimationController,
+                child: FloatingActionButton(
+                  onPressed: () {
+                    _showAddDialog();
+                  },
+                  backgroundColor: Color(0xFFFF6B9D),
+                  child: Icon(Icons.add, color: Colors.white, size: 28),
+                  elevation: 8,
+                ),
+              ),
+            )
+          : null,
+      floatingActionButtonLocation:
+          FloatingActionButtonLocation.centerFloat, // 改为 centerFloat 让按钮浮动
     );
   }
 
@@ -153,8 +157,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     _buildAddOption(Icons.task_alt, '新建任务', '创建一个新的任务项目'),
                     SizedBox(height: 12),
                     _buildAddOption(Icons.edit_note, '写日志', '记录今天的工作心得'),
-                    SizedBox(height: 12),
-                    _buildAddOption(Icons.event, '添加日程', '安排新的日程计划'),
                   ],
                 ),
               ),
@@ -174,7 +176,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             content: Text('$title 功能开发中...'),
             backgroundColor: Color(0xFFFF8C42),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       },

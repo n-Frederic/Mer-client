@@ -85,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                       
                       // 标题
                       Text(
-                        'MER',
+                        'Pandora',
                         style: TextStyle(
                           fontFamily: 'DancingScript',
                           fontSize: 48,

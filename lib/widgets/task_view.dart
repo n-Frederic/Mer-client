@@ -106,11 +106,6 @@ class _CalendarViewState extends State<CalendarView> with SingleTickerProviderSt
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddTaskDialog,
-        child: Icon(Icons.add),
-        backgroundColor: Color(0xFFFF8C42),
-      ),
     );
   }
 
@@ -1251,98 +1246,6 @@ class _CalendarViewState extends State<CalendarView> with SingleTickerProviderSt
               ],
             );
           },
-        );
-      },
-    );
-  }
-
-  void _showAddTaskDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        final titleController = TextEditingController();
-        final descriptionController = TextEditingController();
-        final timeController = TextEditingController();
-        DateTime selectedDate = _currentDate;
-
-        return AlertDialog(
-          title: Text('添加任务'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  decoration: InputDecoration(labelText: '任务标题'),
-                ),
-                TextField(
-                  controller: descriptionController,
-                  decoration: InputDecoration(labelText: '任务描述'),
-                ),
-                TextField(
-                  controller: timeController,
-                  decoration: InputDecoration(labelText: '时间 (例: 09:00)'),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    final DateTime? picked = await showDatePicker(
-                      context: context,
-                      initialDate: selectedDate,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2030),
-                    );
-                    if (picked != null) {
-                      selectedDate = picked;
-                    }
-                  },
-                  child: Text('选择日期: ${selectedDate.toString().substring(0, 10)}'),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('取消'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (titleController.text.isNotEmpty && timeController.text.isNotEmpty) {
-                  setState(() {
-                    _events.add({
-                      'id': '${_events.length + 1}',
-                      'date': selectedDate,
-                      'title': titleController.text,
-                      'description': descriptionController.text,
-                      'time': timeController.text,
-                      'color': Color(0xFFFF6B9D),
-                      'emoji': '📋',
-                      'type': 'task',
-                      'status': TaskStatus.pending,
-                      'progress': 0.0,
-                      'owner': _currentUserId,
-                      'assignedTo': _currentUserId,
-                      'collaborators': [],
-                      'log': '${DateTime.now().toString().substring(0, 10)}: 任务创建',
-                      'subtasks': [],
-                      'checkIns': [],
-                      'requiresLocationCheckIn': true,
-                      'requiresPhotoCheckIn': true,
-                    });
-                  });
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('任务添加成功')),
-                  );
-                }
-              },
-              child: Text('添加'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFFFF8C42),
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
         );
       },
     );
