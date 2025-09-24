@@ -79,7 +79,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
     );
     _animationController.forward();
   }
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -146,56 +145,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                         ],
                       ),
                     ),
-                    if (_currentUser['canViewSubordinates'])
-                      Container(
-                        margin: EdgeInsets.only(right: 8),
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Color(0xFF4ECDC4).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.arrow_downward,
-                                size: 12, color: Color(0xFF4ECDC4)),
-                            SizedBox(width: 4),
-                            Text(
-                              '可查看下级',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Color(0xFF4ECDC4),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    if (_currentUser['canRequestApproval'])
-                      Container(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Color(0xFF667eea).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.arrow_upward,
-                                size: 12, color: Color(0xFF667eea)),
-                            SizedBox(width: 4),
-                            Text(
-                              '可申请审批',
-                              style: TextStyle(
-                                  fontSize: 10,
-                                  color: Color(0xFF667eea),
-                                  fontWeight: FontWeight.w600),
-                            ),
-                          ],
-                        ),
-                      ),
                   ],
                 ),
                 SizedBox(height: 16),
@@ -213,12 +162,12 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                     decoration: InputDecoration(
                       hintText: '搜索日志...',
                       hintStyle:
-                          TextStyle(color: Color(0xFF999999), fontSize: 14),
+                      TextStyle(color: Color(0xFF999999), fontSize: 14),
                       prefixIcon: Icon(Icons.search,
                           color: Color(0xFF999999), size: 20),
                       border: InputBorder.none,
                       contentPadding:
-                          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
                   ),
                 ),

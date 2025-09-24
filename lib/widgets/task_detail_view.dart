@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:io';
 import 'enums.dart';
+import 'log_view_detail.dart';
 
 class TaskDetailView extends StatefulWidget {
   final Map<String, dynamic> task;
@@ -56,12 +57,11 @@ class _TaskDetailViewState extends State<TaskDetailView> {
             SizedBox(height: 20),
             _buildTaskLog(),
             SizedBox(height: 20),
-            if (_currentTask['requiresLocationCheckIn'] && _currentTask['requiresPhotoCheckIn'] &&
-                (_currentTask['assignedTo'] == widget.currentUserId || widget.userRole == UserRole.teamLeader))
+            if (_currentTask['assignedTo'] == widget.currentUserId)
               Center(
                 child: ElevatedButton(
                   onPressed: _handleCheckIn,
-                  child: Text('任务打卡'),
+                  child: Text('写日志'),
                 ),
               ),
           ],
@@ -115,13 +115,10 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.9), height: 1.5),
             ),
             SizedBox(height: 12),
-            Row(
+            Wrap(
+              spacing: 8.0, // 子组件之间的水平间距
+              runSpacing: 4.0, // 子组件之间的垂直间距
               children: [
-                Chip(
-                  label: Text(_currentTask['type'], style: TextStyle(color: Colors.white, fontSize: 12)),
-                  backgroundColor: Colors.white.withOpacity(0.2),
-                ),
-                SizedBox(width: 8),
                 Chip(
                   label: Text(
                     _getStatusText(_currentTask['status']),
@@ -145,6 +142,49 @@ class _TaskDetailViewState extends State<TaskDetailView> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTaskLog() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '任务日志',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF333333)),
+        ),
+        SizedBox(height: 12),
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => LogDetailView(
+                  log: _currentTask['log'] ?? '暂无日志',
+                ),
+              ),
+            );
+          },
+          child: Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                _currentTask['log'] ?? '暂无日志',
+                style: TextStyle(fontSize: 14, color: Color(0xFF666666), height: 1.5),
+                maxLines: 5,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -262,31 +302,6 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     );
   }
 
-  Widget _buildTaskLog() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '任务日志',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF333333)),
-        ),
-        SizedBox(height: 12),
-        Container(
-          padding: EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))],
-          ),
-          child: Text(
-            _currentTask['log'] ?? '暂无日志',
-            style: TextStyle(fontSize: 14, color: Color(0xFF666666), height: 1.5),
-          ),
-        ),
-      ],
-    );
-  }
-
   String _getStatusText(TaskStatus status) {
     switch (status) {
       case TaskStatus.pending:
@@ -321,7 +336,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: Text('任务打卡'),
+              title: Text('写日志'),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -442,21 +457,21 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 ElevatedButton(
                   onPressed: (capturedImage != null && currentPosition != null)
                       ? () {
-                          Navigator.pop(context);
-                          setState(() {
-                            _currentTask['checkIns'].add({
-                              'userId': widget.currentUserId,
-                              'timestamp': DateTime.now(),
-                              'photo': capturedImage!.path,
-                              'location': locationAddress ?? '${currentPosition!.latitude}, ${currentPosition!.longitude}',
-                              'note': noteController.text.isNotEmpty ? noteController.text : '任务打卡'
-                            });
-                            widget.onTaskUpdated(_currentTask);
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('打卡成功')),
-                          );
-                        }
+                    Navigator.pop(context);
+                    setState(() {
+                      _currentTask['checkIns'].add({
+                        'userId': widget.currentUserId,
+                        'timestamp': DateTime.now(),
+                        'photo': capturedImage!.path,
+                        'location': locationAddress ?? '${currentPosition!.latitude}, ${currentPosition!.longitude}',
+                        'note': noteController.text.isNotEmpty ? noteController.text : '写日志'
+                      });
+                      widget.onTaskUpdated(_currentTask);
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('打卡成功')),
+                    );
+                  }
                       : null,
                   child: Text('完成打卡'),
                 ),
