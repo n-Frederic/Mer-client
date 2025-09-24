@@ -11,10 +11,9 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
   String _selectedScope = 'personal'; // personal, company, external
   String _selectedMode = 'my'; // my, team, member, approval
   String _selectedTimeFilter = 'all'; // all, today, this_week, this_year
-  String _selectedMember = '';
+  Set<String> _selectedMembers = {};
   String _searchTerm = '';
 
-// 当前用户信息
   final Map<String, dynamic> _currentUser = {
     'name': '张小兔',
     'role': '团队长',
@@ -24,11 +23,10 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
     'canRequestApproval': true,
   };
 
-// 团队成员
   final List<Map<String, dynamic>> _teamMembers = [
-    {'id': '1', 'name': '小王', 'avatar': '🐱'},
-    {'id': '2', 'name': '小李', 'avatar': '🐶'},
-    {'id': '3', 'name': '小张', 'avatar': '🐼'},
+    {'id': '1', 'name': '小王', 'authorName': '小王', 'avatar': '🐱'},
+    {'id': '2', 'name': '小李', 'authorName': '小李', 'avatar': '🐶'},
+    {'id': '3', 'name': '小张', 'authorName': '小张', 'avatar': '🐼'},
   ];
 
   final List<Map<String, dynamic>> _logs = [
@@ -145,31 +143,33 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                         ],
                       ),
                     ),
-                  ],
-                ),
-                SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Color(0xFFF5F5F5),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: TextField(
-                    onChanged: (value) {
-                      setState(() {
-                        _searchTerm = value;
-                      });
-                    },
-                    decoration: InputDecoration(
-                      hintText: '搜索日志...',
-                      hintStyle:
-                      TextStyle(color: Color(0xFF999999), fontSize: 14),
-                      prefixIcon: Icon(Icons.search,
-                          color: Color(0xFF999999), size: 20),
-                      border: InputBorder.none,
-                      contentPadding:
-                      EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    // 在这里添加搜索框
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Color(0xFFF5F5F5),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: TextField(
+                          onChanged: (value) {
+                            setState(() {
+                              _searchTerm = value;
+                            });
+                          },
+                          decoration: InputDecoration(
+                            hintText: '搜索日志...',
+                            hintStyle:
+                            TextStyle(color: Color(0xFF999999), fontSize: 14),
+                            prefixIcon: Icon(Icons.search,
+                                color: Color(0xFF999999), size: 20),
+                            border: InputBorder.none,
+                            contentPadding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
                 SizedBox(height: 12),
                 SingleChildScrollView(
@@ -180,8 +180,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                       _buildFilterButton('my', '我的日志', Color(0xFFFF8C42)),
                       if (_currentUser['canViewSubordinates']) ...[
                         SizedBox(width: 8),
-                        _buildFilterButton('team', '团队日志', Color(0xFFFF8C42)),
-                        SizedBox(width: 8),
                         _buildFilterButton('member', '成员日志', Color(0xFFFF8C42)),
                       ],
                       SizedBox(width: 8),
@@ -190,28 +188,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                   ),
                 ),
                 SizedBox(height: 8),
-                if (_selectedMode == 'member' &&
-                    _currentUser['canViewSubordinates'])
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    padding: EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      children: _teamMembers.map((member) {
-                        return Row(
-                          children: [
-                            _buildMemberButton(
-                                member['id'],
-                                '${member['avatar']} ${member['name']}',
-                                Color(0xFFFF8C42)),
-                            SizedBox(width: 8),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                if (_selectedMode == 'member' &&
-                    _currentUser['canViewSubordinates'])
-                  SizedBox(height: 8),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   padding: EdgeInsets.symmetric(horizontal: 16),
@@ -239,62 +215,232 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
   }
 
   Widget _buildFilterButton(String value, String label, Color color) {
-    bool isSelected = _selectedMode == value || _selectedTimeFilter == value;
+    final isSelected = _selectedMode == value;
+    final isMemberButton = value == 'member' && _currentUser['canViewSubordinates'];
+
     return GestureDetector(
       onTap: () {
         setState(() {
-          if (value == 'my' ||
-              value == 'team' ||
-              value == 'member' ||
-              value == 'approval') {
+          if (isMemberButton) {
             _selectedMode = value;
-            if (_selectedMode != 'member') _selectedMember = '';
+          } else if (value == 'my' || value == 'approval') {
+            _selectedMode = value;
+            _selectedMembers.clear();
           } else {
             _selectedTimeFilter = value;
           }
         });
       },
-      child: Container(
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 200),
         padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? color : color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: isSelected ? Colors.white : color,
-            fontWeight: FontWeight.w500,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: isSelected ? Colors.white : color,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            if (isMemberButton && isSelected) ...[
+              SizedBox(width: 4),
+              GestureDetector(
+                onTap: _showMemberSelectionDialog,
+                child: Icon(
+                  Icons.filter_list,
+                  size: 16,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
   }
+  void _showMemberSelectionDialog() {
+    Set<String> tempSelectedMembers = Set.from(_selectedMembers);
+    String tempSearchTerm = '';
 
-  Widget _buildMemberButton(String value, String label, Color color) {
-    bool isSelected = _selectedMember == value;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedMember = isSelected ? '' : value;
-        });
+    // 模拟层级数据，与您的实际数据结构相匹配
+    final List<String> departments = ['技术部', '市场部', '销售部'];
+    final Map<String, List<String>> teamsByDepartment = {
+      '技术部': ['前端团队', '后端团队'],
+      '市场部': ['运营团队', '品牌团队'],
+      '销售部': ['国内销售', '海外销售'],
+    };
+    final Map<String, List<Map<String, dynamic>>> membersByTeam = {
+      '前端团队': [
+        {'id': '1', 'name': '小王'},
+        {'id': '3', 'name': '小张'},
+      ],
+      '后端团队': [
+        {'id': '2', 'name': '小李'},
+      ],
+      '运营团队': [
+        {'id': '4', 'name': '小赵'},
+      ],
+      '品牌团队': [
+        {'id': '5', 'name': '小钱'},
+      ],
+      '国内销售': [
+        {'id': '6', 'name': '小孙'},
+      ],
+      '海外销售': [
+        {'id': '7', 'name': '小吴'},
+      ],
+    };
+
+    String? selectedDepartment;
+    String? selectedTeam;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            // 根据选定的部门和团队获取基础成员列表
+            List<Map<String, dynamic>> baseMembers = [];
+            if (selectedTeam != null) {
+              baseMembers = membersByTeam[selectedTeam] ?? [];
+            } else if (selectedDepartment != null) {
+              List<String> teamsInDepartment = teamsByDepartment[selectedDepartment] ?? [];
+              for (var team in teamsInDepartment) {
+                baseMembers.addAll(membersByTeam[team] ?? []);
+              }
+            } else {
+              baseMembers = _teamMembers;
+            }
+
+            // 在基础列表上进行模糊搜索过滤
+            final filteredMembers = baseMembers.where((member) {
+              return member['name'].toLowerCase().contains(tempSearchTerm.toLowerCase());
+            }).toList();
+
+            return AlertDialog(
+              title: Text('选择成员'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 模糊搜索框
+                    TextField(
+                      decoration: InputDecoration(
+                        hintText: '搜索成员...',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10),
+                      ),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          tempSearchTerm = value;
+                        });
+                      },
+                    ),
+                    SizedBox(height: 12),
+                    // 部门下拉菜单
+                    DropdownButtonFormField<String>(
+                      decoration: InputDecoration(
+                        labelText: '部门',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10),
+                      ),
+                      value: selectedDepartment,
+                      items: departments.map((String department) {
+                        return DropdownMenuItem(
+                          value: department,
+                          child: Text(department),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        setDialogState(() {
+                          selectedDepartment = newValue;
+                          selectedTeam = null;
+                          tempSearchTerm = ''; // 重置搜索词
+                        });
+                      },
+                    ),
+                    SizedBox(height: 12),
+                    // 团队下拉菜单（级联）
+                    DropdownButtonFormField<String>(
+                      decoration: InputDecoration(
+                        labelText: '团队',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10),
+                      ),
+                      value: selectedTeam,
+                      items: selectedDepartment != null
+                          ? (teamsByDepartment[selectedDepartment] ?? []).map((String team) {
+                        return DropdownMenuItem(
+                          value: team,
+                          child: Text(team),
+                        );
+                      }).toList()
+                          : [],
+                      onChanged: (String? newValue) {
+                        setDialogState(() {
+                          selectedTeam = newValue;
+                          tempSearchTerm = ''; // 重置搜索词
+                        });
+                      },
+                    ),
+                    SizedBox(height: 12),
+                    // 成员列表（根据下拉菜单和搜索框双重过滤）
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: filteredMembers.length,
+                        itemBuilder: (BuildContext context, int index) {
+                          final member = filteredMembers[index];
+                          final isSelected = tempSelectedMembers.contains(member['id']);
+                          return CheckboxListTile(
+                            title: Text(member['name']),
+                            value: isSelected,
+                            onChanged: (bool? newValue) {
+                              setDialogState(() {
+                                if (newValue == true) {
+                                  tempSelectedMembers.add(member['id']);
+                                } else {
+                                  tempSelectedMembers.remove(member['id']);
+                                }
+                              });
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  child: Text('取消'),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                ElevatedButton(
+                  child: Text('确定'),
+                  onPressed: () {
+                    setState(() {
+                      _selectedMode = 'member';
+                      _selectedMembers = tempSelectedMembers;
+                    });
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+            );
+          },
+        );
       },
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? color : color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: isSelected ? Colors.white : color,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
     );
   }
 
@@ -427,21 +573,21 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                     spacing: 6,
                     children: (log['tags'] as List<String>)
                         .map((tag) => Container(
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Color(0xFFFFE66D).withOpacity(0.3),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                tag,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Color(0xFFFF8C42),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ))
+                      padding: EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Color(0xFFFFE66D).withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        tag,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Color(0xFFFF8C42),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ))
                         .toList(),
                   ),
                 ),
@@ -481,6 +627,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
         case 'external':
           scopeMatch = log['scope'] == 'external';
           break;
+
       }
       if (!scopeMatch) return false;
 
@@ -493,12 +640,10 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
           modeMatch = log['scope'] == 'team';
           break;
         case 'member':
-          if (_selectedMember.isEmpty) return false;
-          String memberName = _teamMembers.firstWhere(
-            (m) => m['id'] == _selectedMember,
-            orElse: () => {'name': ''},
-          )['name'];
-          modeMatch = log['author'] == memberName;
+        // 成员筛选逻辑
+          if (_selectedMembers.isEmpty) return false;
+          modeMatch = _selectedMembers.any(
+                  (id) => _teamMembers.any((m) => m['id'] == id && m['name'] == log['author']));
           break;
         case 'approval':
           modeMatch = log['status'] == '待审批';
@@ -523,7 +668,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
           final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
           final endOfWeek = startOfWeek.add(Duration(days: 6));
           timeMatch = logDate
-                  .isAfter(startOfWeek.subtract(Duration(microseconds: 1))) &&
+              .isAfter(startOfWeek.subtract(Duration(microseconds: 1))) &&
               logDate.isBefore(endOfWeek.add(Duration(days: 1)));
           break;
         case 'this_year':
@@ -570,7 +715,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
       case 'team':
         return '团队暂无日志记录';
       case 'member':
-        return _selectedMember.isEmpty ? '请选择要查看的团队成员' : '该成员暂无日志记录';
+        return _selectedMembers.isEmpty ? '请选择要查看的团队成员' : '该成员暂无日志记录';
       case 'approval':
         return '暂无待审批的日志';
       default:
