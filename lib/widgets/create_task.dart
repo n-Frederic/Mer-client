@@ -9,18 +9,26 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   final _formKey = GlobalKey<FormState>();
   final _taskNameController = TextEditingController();
   final _taskContentController = TextEditingController();
+  final _tagController = TextEditingController(); // 新增：用于输入标签
 
   DateTime? _selectedDeadline;
   String _taskType = 'self'; // 'self' or 'employee'
-  String? _selectedEmployee;
+  String? _selectedEmployeeId; // Changed to hold the employee's ID
 
-  // 模拟员工数据
+  // Add new state variables for the dropdowns
+  String? _selectedDepartment;
+  String? _selectedTeam;
+  List<String> _selectedTags = ['Q4', '紧急']; // 新增：模拟已选标签
+
+  // Mock data for employees with hierarchy
   final List<Map<String, String>> _employees = [
-    {'id': '1', 'name': '张三', 'department': '开发部'},
-    {'id': '2', 'name': '李四', 'department': '设计部'},
-    {'id': '3', 'name': '王五', 'department': '产品部'},
-    {'id': '4', 'name': '赵六', 'department': '测试部'},
+    {'id': '1', 'name': '张三', 'department': '开发部', 'team': '前端团队'},
+    {'id': '2', 'name': '李四', 'department': '设计部', 'team': 'UI设计'},
+    {'id': '3', 'name': '王五', 'department': '产品部', 'team': '产品规划'},
+    {'id': '4', 'name': '赵六', 'department': '开发部', 'team': '后端团队'},
   ];
+
+  final List<String> _departments = ['开发部', '设计部', '产品部', '测试部'];
 
   @override
   Widget build(BuildContext context) {
@@ -79,6 +87,9 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                 SizedBox(height: 32),
               ] else
                 SizedBox(height: 32),
+
+              _buildTagSelector(), // 新增：标签选择器
+              SizedBox(height: 32),
 
               _buildCreateButton(),
             ],
@@ -202,6 +213,66 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     );
   }
 
+  Widget _buildTagSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('标签'),
+        SizedBox(height: 16),
+        TextFormField(
+          controller: _tagController,
+          decoration: InputDecoration(
+            labelText: '添加标签',
+            hintText: '输入标签后按回车键或点击右侧图标添加',
+            prefixIcon: Icon(Icons.label, color: Color(0xFF4ECDC4)),
+            suffixIcon: IconButton(
+              icon: Icon(Icons.add, color: Color(0xFF4ECDC4)),
+              onPressed: () {
+                if (_tagController.text.trim().isNotEmpty) {
+                  setState(() {
+                    _selectedTags.add(_tagController.text.trim());
+                    _tagController.clear();
+                  });
+                }
+              },
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Color(0xFFE0E0E0)),
+            ),
+            filled: true,
+            fillColor: Color(0xFFFFF8E1),
+          ),
+          onFieldSubmitted: (value) {
+            if (value.trim().isNotEmpty) {
+              setState(() {
+                _selectedTags.add(value.trim());
+                _tagController.clear();
+              });
+            }
+          },
+        ),
+        SizedBox(height: 12),
+        if (_selectedTags.isNotEmpty)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _selectedTags.map((tag) => Chip(
+              label: Text(tag),
+              backgroundColor: Color(0xFF4ECDC4).withOpacity(0.1),
+              labelStyle: TextStyle(color: Color(0xFF4ECDC4), fontWeight: FontWeight.w600),
+              deleteIcon: Icon(Icons.close, size: 18, color: Color(0xFF4ECDC4)),
+              onDeleted: () {
+                setState(() {
+                  _selectedTags.remove(tag);
+                });
+              },
+            )).toList(),
+          ),
+      ],
+    );
+  }
+
   Widget _buildTaskTypeSelector() {
     return Container(
       decoration: BoxDecoration(
@@ -225,7 +296,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
             onChanged: (value) {
               setState(() {
                 _taskType = value!;
-                _selectedEmployee = null;
+                _selectedEmployeeId = null;
               });
             },
           ),
@@ -252,48 +323,151 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     );
   }
 
+  // Refactored to use cascading dropdowns
   Widget _buildEmployeeSelector() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Color(0xFFFFF8E1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color(0xFFE0E0E0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Icon(Icons.assignment_ind, color: Color(0xFFFF8C42)),
-                SizedBox(width: 8),
-                Text(
-                  '选择员工',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF333333),
-                  ),
+    final List<String> teams = _employees
+        .where((e) => e['department'] == _selectedDepartment)
+        .map((e) => e['team']!)
+        .toSet()
+        .toList();
+
+    final List<Map<String, String>> members = _employees
+        .where((e) => e['department'] == _selectedDepartment && e['team'] == _selectedTeam)
+        .toList();
+
+    // 根据下拉框筛选结果和搜索关键词，最终确定显示的成员列表
+    final List<Map<String, String>> filteredMembers =
+    (members.isEmpty && (_selectedDepartment == null && _selectedTeam == null))
+        ? _employees
+        : members;
+
+    // 假设您在 _CreateTaskScreenState 中有一个用于搜索的控制器
+    final _searchController = TextEditingController();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 部门、团队、人员和搜索框放在同一行
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                decoration: InputDecoration(
+                  labelText: '部门',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  isDense: true,
                 ),
-              ],
+                value: _selectedDepartment,
+                items: _departments.map((String department) {
+                  return DropdownMenuItem<String>(
+                    value: department,
+                    child: Text(department),
+                  );
+                }).toList(),
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _selectedDepartment = newValue;
+                    _selectedTeam = null;
+                    _selectedEmployeeId = null;
+                  });
+                },
+              ),
             ),
+            SizedBox(width: 8),
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                decoration: InputDecoration(
+                  labelText: '团队',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  isDense: true,
+                ),
+                value: _selectedTeam,
+                items: teams.map((String team) {
+                  return DropdownMenuItem<String>(
+                    value: team,
+                    child: Text(team),
+                  );
+                }).toList(),
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _selectedTeam = newValue;
+                    _selectedEmployeeId = null;
+                  });
+                },
+              ),
+            ),
+            SizedBox(width: 8),
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                decoration: InputDecoration(
+                  labelText: '员工',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  isDense: true,
+                ),
+                value: _selectedEmployeeId,
+                items: filteredMembers.map((Map<String, String> employee) {
+                  return DropdownMenuItem<String>(
+                    value: employee['id'],
+                    child: Text(employee['name']!),
+                  );
+                }).toList(),
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _selectedEmployeeId = newValue;
+                  });
+                },
+                validator: (value) {
+                  if (_taskType == 'employee' && value == null) {
+                    return '请选择要分配的员工';
+                  }
+                  return null;
+                },
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 16),
+        // 搜索框放在另一行，因为一行放不下
+        TextFormField(
+          controller: _searchController,
+          decoration: InputDecoration(
+            labelText: '搜索员工',
+            prefixIcon: Icon(Icons.search),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            isDense: true,
           ),
-          Divider(height: 1, color: Color(0xFFE0E0E0)),
-          ..._employees.map((employee) => RadioListTile<String>(
-            title: Text(employee['name']!),
-            subtitle: Text(employee['department']!),
-            value: employee['id']!,
-            groupValue: _selectedEmployee,
-            activeColor: Color(0xFFFF8C42),
-            onChanged: (value) {
-              setState(() {
-                _selectedEmployee = value;
-              });
+          onChanged: (value) {
+            // 在这里处理搜索逻辑，但目前的代码中列表是静态的，所以需要手动处理
+            // 如果需要实时搜索，需要将列表包装在一个 StatefulBuilder 中
+          },
+        ),
+        SizedBox(height: 16),
+        // 显示所有员工的滚动列表
+        Container(
+          height: 200, // 给定一个固定的高度
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: ListView.builder(
+            itemCount: _employees.length, // 这里显示所有员工，不进行筛选
+            itemBuilder: (context, index) {
+              final employee = _employees[index];
+              return RadioListTile<String>(
+                title: Text(employee['name']!),
+                subtitle: Text('${employee['department']!} - ${employee['team']!}'),
+                value: employee['id']!,
+                groupValue: _selectedEmployeeId,
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _selectedEmployeeId = newValue;
+                  });
+                },
+              );
             },
-          )).toList(),
-        ],
-      ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -390,7 +564,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
         return;
       }
 
-      if (_taskType == 'employee' && _selectedEmployee == null) {
+      if (_taskType == 'employee' && _selectedEmployeeId == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('请选择要分配的员工'),
@@ -402,10 +576,9 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
         return;
       }
 
-      // 这里可以添加实际的任务创建逻辑
       String assigneeInfo = _taskType == 'self'
           ? '自己'
-          : _employees.firstWhere((e) => e['id'] == _selectedEmployee)['name']!;
+          : _employees.firstWhere((e) => e['id'] == _selectedEmployeeId)['name']!;
 
       showDialog(
         context: context,
@@ -447,6 +620,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   void dispose() {
     _taskNameController.dispose();
     _taskContentController.dispose();
+    _tagController.dispose();
     super.dispose();
   }
 }

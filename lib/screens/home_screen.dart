@@ -5,6 +5,8 @@ import '../widgets/task_view.dart';
 import '../widgets/log_view.dart';
 import '../widgets/analytics_view.dart';
 import '../widgets/profile_view.dart';
+import '../widgets/create_log.dart';
+import '../widgets/create_task.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -170,16 +172,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildAddOption(IconData icon, String title, String subtitle) {
     return InkWell(
       onTap: () {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$title 功能开发中...'),
-            backgroundColor: Color(0xFFFF8C42),
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
+        Navigator.pop(context); // 关闭当前弹窗或页面
+
+        if (title == '新建任务') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CreateTaskScreen(), // 替换为你的任务创建页面
+            ),
+          );
+        }else if (title == '写日志') {
+          // 跳转到日志创建页面
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CreateLogScreen(),
+            ),
+          );
+        } else {
+          // 其他选项保持原有的 SnackBar 提示
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$title 功能开发中...'),
+              backgroundColor: Color(0xFFFF8C42),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
       },
       borderRadius: BorderRadius.circular(16),
       child: Container(

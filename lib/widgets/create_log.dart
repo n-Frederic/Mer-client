@@ -24,6 +24,19 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
     '安全检查'
   ];
 
+  // 定义统一的渐变色
+  final LinearGradient _appBarGradient = const LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFFFFE66D), // 较浅的橙色
+      Color(0xFFFF8C42), // 较深的橙色
+    ],
+  );
+
+  // 定义统一的强调色（来自渐变中的深色）
+  final Color _accentColor = const Color(0xFFFF8C42);
+
   @override
   void dispose() {
     _todaySummaryController.dispose();
@@ -65,9 +78,8 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
                   width: 4,
                   height: 20,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF6B35), Color(0xFFFF8E53)],
-                    ),
+                    // 使用统一的渐变色
+                    gradient: _appBarGradient,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -95,7 +107,7 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Color(0xFFFF6B35), width: 2),
+                  borderSide: BorderSide(color: _accentColor, width: 2), // 使用统一强调色
                 ),
                 filled: true,
                 fillColor: Colors.grey[50],
@@ -128,9 +140,8 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
                   width: 4,
                   height: 20,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF6B35), Color(0xFFFF8E53)],
-                    ),
+                    // 使用统一的渐变色
+                    gradient: _appBarGradient,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -190,7 +201,7 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
                               this.setState(() {});
                             },
                             controlAffinity: ListTileControlAffinity.leading,
-                            activeColor: const Color(0xFFFF6B35),
+                            activeColor: _accentColor, // 使用统一强调色
                           );
                         },
                       ),
@@ -211,9 +222,8 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
                   return Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFF6B35), Color(0xFFFF8E53)],
-                      ),
+                      // 使用统一的渐变色
+                      gradient: _appBarGradient,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -252,98 +262,6 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
     );
   }
 
-  Widget _buildPreviewCard() {
-    final todayText = _todaySummaryController.text.trim();
-    final tomorrowText = _tomorrowPlanController.text.trim();
-    final helpText = _helpNeededController.text.trim();
-
-    final completedSections = [
-      if (todayText.isNotEmpty) '今日总结',
-      if (tomorrowText.isNotEmpty) '明日计划',
-      if (helpText.isNotEmpty) '协调帮助',
-      if (_selectedTasks.isNotEmpty) '相关任务',
-    ];
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 4,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF6B35), Color(0xFFFF8E53)],
-                    ),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  '日志预览',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF2D3748),
-                  ),
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: completedSections.length == 4 ? Colors.green[100] : Colors.orange[100],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${completedSections.length}/4 完成',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: completedSections.length == 4 ? Colors.green[700] : Colors.orange[700],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            if (completedSections.isNotEmpty) ...[
-              ...completedSections.map((section) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  children: [
-                    Icon(Icons.check_circle, size: 16, color: Colors.green[600]),
-                    const SizedBox(width: 8),
-                    Text(
-                      section,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                  ],
-                ),
-              )),
-            ] else ...[
-              Text(
-                '开始填写日志内容...',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[500],
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -357,8 +275,13 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
             color: Colors.white,
           ),
         ),
-        backgroundColor: const Color(0xFFFF6B35),
+        // 移除 backgroundColor
         elevation: 0,
+        flexibleSpace: Container( // 添加 flexibleSpace 来实现渐变
+          decoration: BoxDecoration(
+            gradient: _appBarGradient,
+          ),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
@@ -392,16 +315,14 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
               ),
               const SizedBox(height: 16),
               _buildTaskSelectionCard(),
-              const SizedBox(height: 16),
-              _buildPreviewCard(),
-              const SizedBox(height: 24),
+              const SizedBox(height: 24), // 调整间距，因为移除了预览卡片
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
                   onPressed: _submitLog,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF6B35),
+                    backgroundColor: _accentColor, // 使用统一强调色
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
