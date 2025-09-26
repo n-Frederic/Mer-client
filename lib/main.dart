@@ -60,7 +60,7 @@ class PandoraApp extends StatelessWidget {
           background: Color(0xFFFFF8E1),
         ),
       ),
-      home: HomeScreen(),
+      home: LoginScreen(),
       routes: {
         '/home': (context) => HomeScreen(),
         '/tasks': (context) => TaskScreen(),
