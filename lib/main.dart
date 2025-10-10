@@ -60,9 +60,10 @@ class PandoraApp extends StatelessWidget {
           background: Color(0xFFFFF8E1),
         ),
       ),
-      // home: HomeScreen(),
-      home: LoginScreen(),
+      home: HomeScreen(),
+      // home: LoginScreen(),  // 修改这里：直接跳转到登录页面
       routes: {
+        '/login': (context) => LoginScreen(),
         '/home': (context) => HomeScreen(),
         '/tasks': (context) => TaskScreen(),
         '/logs': (context) => LogScreen(),

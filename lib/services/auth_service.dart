@@ -3,15 +3,15 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  static const String baseUrl = "http://127.0.0.1:8000/api";
-
-  static Future<String?> login(String email, String password) async {
+  // static const String baseUrl = "http://127.0.0.1:8000/api";
+  static const String baseUrl = "http://10.0.2.2:8080/api";
+  static Future<String?> login(String username, String password) async {
     final url = Uri.parse("$baseUrl/login/");
     final response = await http.post(
       url,
       headers: {"Content-Type": "application/json"},
       body: jsonEncode({
-        "email": email,
+        "username": username,
         "password": password,
       }),
     );
