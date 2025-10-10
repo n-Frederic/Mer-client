@@ -3,7 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:io';
 import 'task_detail_view.dart';
-import 'enums.dart';
+import 'enums.dart' hide TaskStatus;
 import '../models/task.dart';
 import '../services/task_service.dart';
 
@@ -74,7 +74,7 @@ class _CalendarViewState extends State<CalendarView>
         'color': Color(0xFF4ECDC4),
         'emoji': '🛠️',
         'type': 'maintenance',
-        'status': TaskStatus.pending,
+        'status': TaskStatus.assigned,
         'progress': 0.0,
         'owner': '李四',
         'assignedTo': '李四',
@@ -980,18 +980,31 @@ class _CalendarViewState extends State<CalendarView>
   Widget _buildStatusChip(TaskStatus status) {
     Color color;
     String text;
+
     switch (status) {
-      case TaskStatus.pending:
-        color = Colors.grey;
-        text = '待开始';
+      case TaskStatus.published:
+        color = Color(0xFF999999);
+        text = '已发布';
+        break;
+      case TaskStatus.assigned:
+        color = Color(0xFFFF8C42);
+        text = '已分配';
         break;
       case TaskStatus.inProgress:
         color = Colors.blue;
         text = '进行中';
         break;
+      case TaskStatus.reported:
+        color = Colors.purple;
+        text = '已汇报';
+        break;
       case TaskStatus.completed:
         color = Colors.green;
         text = '已完成';
+        break;
+      case TaskStatus.closed:
+        color = Colors.black45;
+        text = '已关闭';
         break;
     }
 
@@ -1004,7 +1017,8 @@ class _CalendarViewState extends State<CalendarView>
       ),
       child: Text(
         text,
-        style: TextStyle(color: color, fontSize: 12),
+        style: TextStyle(
+            color: color, fontSize: 12, fontWeight: FontWeight.w500),
       ),
     );
   }
