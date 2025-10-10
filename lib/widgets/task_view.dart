@@ -4,6 +4,8 @@ import 'package:geolocator/geolocator.dart';
 import 'dart:io';
 import 'task_detail_view.dart';
 import 'enums.dart';
+import '../models/task.dart';
+import '../services/task_service.dart';
 
 class CalendarView extends StatefulWidget {
   @override
