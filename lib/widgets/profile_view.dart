@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../services/auth_service.dart';
+
 class ProfileView extends StatefulWidget {
   @override
   _ProfileViewState createState() => _ProfileViewState();
@@ -323,8 +325,9 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
             child: Text('取消'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async{
               Navigator.pop(context);
+              await AuthService.logout();
               Navigator.pushReplacementNamed(context, '/');
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
