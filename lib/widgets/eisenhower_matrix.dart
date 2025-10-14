@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'eisenhower_matrix.dart';
 
 class EisenhowerMatrix extends StatefulWidget {
   @override
@@ -11,6 +12,14 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
   String _personalNote = "今天要专注完成重要任务，保持高效工作状态！ 💪";
   bool _isEditingNote = false;
   final TextEditingController _noteController = TextEditingController();
+
+  // 四个板块的数据
+  List<String> _companyImportantTasks = [];
+  List<String> _companyAssignedTasks = [];
+  List<String> _personalImportantTasks = [];
+  List<String> _personalLogs = [];
+
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -30,7 +39,49 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
       );
     });
 
-    _animationController.forward();
+    _loadAllData();
+  }
+
+  Future<void> _loadAllData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+
+      // 并行加载所有数据
+      final results = await Future.wait([
+        TaskService.getCompanyImportantTasks(),
+        TaskService.getCompanyAssignedTasks(),
+        TaskService.getPersonalImportantTasks(),
+        TaskService.getPersonalLogs(),
+      ]);
+
+      setState(() {
+        _companyImportantTasks = results[0];
+        _companyAssignedTasks = results[1];
+        _personalImportantTasks = results[2];
+        _personalLogs = results[3];
+        _isLoading = false;
+      });
+
+      _animationController.forward();
+    } catch (e) {
+      print('Error loading data: $e');
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('数据加载失败，请检查网络连接'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _refreshData() async {
+    await _loadAllData();
   }
 
   @override
@@ -50,72 +101,78 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
-            // 个人备注区域
-            _buildPersonalNoteCard(),
+            // 刷新按钮和个人备注区域
+            Row(
+              children: [
+                IconButton(
+                  onPressed: _refreshData,
+                  icon: Icon(Icons.refresh),
+                  tooltip: '刷新数据',
+                ),
+                Expanded(
+                  child: _buildPersonalNoteCard(),
+                ),
+              ],
+            ),
             SizedBox(height: 12),
 
             // 四象限矩阵
             Expanded(
-              child: GridView.count(
+              child: _isLoading
+                  ? Center(child: CircularProgressIndicator())
+                  : GridView.count(
                 crossAxisCount: 2,
                 crossAxisSpacing: 8,
                 mainAxisSpacing: 8,
-                childAspectRatio: 0.7, // 调整宽高比，拉长卡片
+                childAspectRatio: 0.7,
                 children: [
+                  // 公司重要事项（只读）
                   _buildQuadrantCard(
                     title: "公司10大重要事项",
                     emoji: "🏢",
                     color: Color(0xFFFF6B9D),
-                    items: [
-                      "Q4季度业绩目标达成",
-                      "新产品发布准备",
-                      "客户满意度提升项目",
-                      "团队建设活动",
-                      "技术架构升级",
-                    ],
+                    items: _companyImportantTasks,
                     isReadOnly: true,
                     animation: _cardAnimations[0],
+                    onTap: () {
+                      _showTaskDetails("公司重要事项", _companyImportantTasks);
+                    },
                   ),
+                  // 公司派发任务（只读）
                   _buildQuadrantCard(
                     title: "公司10大派发任务",
                     emoji: "📋",
                     color: Color(0xFF4ECDC4),
-                    items: [
-                      "完成Q4季度报告",
-                      "参与新员工培训",
-                      "客户服务流程优化",
-                      "年度总结材料准备",
-                      "市场推广活动支持",
-                    ],
+                    items: _companyAssignedTasks,
                     isReadOnly: true,
                     animation: _cardAnimations[1],
+                    onTap: () {
+                      _showTaskDetails("公司派发任务", _companyAssignedTasks);
+                    },
                   ),
+                  // 个人重要事项（可编辑）
                   _buildQuadrantCard(
                     title: "个人10大重要事项",
                     emoji: "⭐",
                     color: Color(0xFF88D8B0),
-                    items: [
-                      "完成项目里程碑",
-                      "学习新技术栈",
-                      "制定职业规划",
-                      "改善工作流程",
-                      "加强团队沟通",
-                    ],
+                    items: _personalImportantTasks,
                     isReadOnly: false,
                     animation: _cardAnimations[2],
+                    onTap: () {
+                      _editPersonalTasks();
+                    },
                   ),
+                  // 个人日志（只读）
                   _buildQuadrantCard(
                     title: "个人日志",
                     emoji: "📝",
                     color: Color(0xFFFFCC80),
-                    items: [
-                      "项目进展顺利 😊",
-                      "学习新知识 🔥",
-                      "团队协作 😐",
-                      "客户沟通 😊",
-                    ],
-                    isReadOnly: false,
+                    items: _personalLogs,
+                    isReadOnly: true,
                     animation: _cardAnimations[3],
+                    onTap: () {
+                      _showTaskDetails("个人日志", _personalLogs);
+                    },
                   ),
                 ],
               ),
@@ -201,94 +258,167 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
     required List<String> items,
     required bool isReadOnly,
     required Animation<double> animation,
+    VoidCallback? onTap,
   }) {
-    return ScaleTransition(
-      scale: animation,
-      child: Card(
-        elevation: 8,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withOpacity(0.3), width: 2),
-          ),
-          padding: EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(emoji, style: TextStyle(fontSize: 20)),
-                  SizedBox(width: 8),
-                  Expanded(
+    return GestureDetector(
+      onTap: onTap,
+      child: ScaleTransition(
+        scale: animation,
+        child: Card(
+          elevation: 8,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Container(
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: color.withOpacity(0.3), width: 2),
+            ),
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(emoji, style: TextStyle(fontSize: 20)),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: color.withOpacity(0.8),
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      isReadOnly ? Icons.visibility : Icons.edit,
+                      size: 16,
+                      color: color.withOpacity(0.6),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                Expanded(
+                  child: items.isEmpty
+                      ? Center(
                     child: Text(
-                      title,
+                      "暂无数据",
                       style: TextStyle(
-                        fontSize: 14, // 字体稍大，适配拉长卡片
-                        fontWeight: FontWeight.bold,
-                        color: color.withOpacity(0.8),
+                        color: Colors.grey,
+                        fontSize: 12,
                       ),
                     ),
-                  ),
-                  Icon(
-                    isReadOnly ? Icons.visibility : Icons.edit,
-                    size: 16,
-                    color: color.withOpacity(0.6),
-                  ),
-                ],
-              ),
-              SizedBox(height: 12),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: items.length > 4 ? 4 : items.length,
-                  itemBuilder: (context, index) {
-                    return Padding(
-                      padding: EdgeInsets.only(bottom: 8), // 增加间距
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 4,
-                            height: 4,
-                            margin: EdgeInsets.only(top: 6, right: 8),
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          Expanded(
-                            child: Text(
-                              items[index],
-                              style: TextStyle(
-                                fontSize: 12, // 字体稍大，适配拉长卡片
-                                color: Colors.grey[700],
-                                height: 1.4, // 增加行高
+                  )
+                      : ListView.builder(
+                    itemCount: items.length > 4 ? 4 : items.length,
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 4,
+                              height: 4,
+                              margin: EdgeInsets.only(top: 6, right: 8),
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-              if (items.length > 4)
-                Center(
-                  child: Text(
-                    "查看全部 ${items.length} 项",
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: color,
-                      fontWeight: FontWeight.bold,
-                    ),
+                            Expanded(
+                              child: Text(
+                                items[index],
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[700],
+                                  height: 1.4,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 ),
-            ],
+                if (items.length > 4)
+                  Center(
+                    child: Text(
+                      "查看全部 ${items.length} 项",
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: color,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  // 显示任务详情（只读板块使用）
+  void _showTaskDetails(String title, List<String> items) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Container(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: items.length,
+            itemBuilder: (context, index) => ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Theme.of(context).primaryColor,
+                child: Text(
+                  '${index + 1}',
+                  style: TextStyle(color: Colors.white, fontSize: 12),
+                ),
+                radius: 12,
+              ),
+              title: Text(items[index]),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 编辑个人重要事项
+  void _editPersonalTasks() {
+    showDialog(
+      context: context,
+      builder: (context) => PersonalTasksEditor(
+        tasks: List.from(_personalImportantTasks),
+        onSave: (newTasks) async {
+          final success = await TaskService.updatePersonalImportantTasks(newTasks);
+          if (success) {
+            setState(() {
+              _personalImportantTasks = newTasks;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('个人重要事项已更新')),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('更新失败，请重试')),
+            );
+          }
+        },
       ),
     );
   }
@@ -297,6 +427,142 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
   void dispose() {
     _animationController.dispose();
     _noteController.dispose();
+    super.dispose();
+  }
+}
+
+// 个人重要事项编辑组件
+class PersonalTasksEditor extends StatefulWidget {
+  final List<String> tasks;
+  final Function(List<String>) onSave;
+
+  const PersonalTasksEditor({
+    Key? key,
+    required this.tasks,
+    required this.onSave,
+  }) : super(key: key);
+
+  @override
+  _PersonalTasksEditorState createState() => _PersonalTasksEditorState();
+}
+
+class _PersonalTasksEditorState extends State<PersonalTasksEditor> {
+  late List<TextEditingController> _controllers;
+  final TextEditingController _newTaskController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = widget.tasks.map((task) => TextEditingController(text: task)).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.star, color: Color(0xFF88D8B0)),
+          SizedBox(width: 8),
+          Text('编辑个人重要事项'),
+        ],
+      ),
+      content: Container(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 现有任务列表
+              ..._controllers.asMap().entries.map((entry) {
+                int index = entry.key;
+                TextEditingController controller = entry.value;
+                return Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: controller,
+                          decoration: InputDecoration(
+                            labelText: '事项 ${index + 1}',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.delete, color: Colors.red),
+                        onPressed: () {
+                          setState(() {
+                            _controllers.removeAt(index);
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+
+              SizedBox(height: 16),
+
+              // 添加新任务
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _newTaskController,
+                      decoration: InputDecoration(
+                        labelText: '添加新事项',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.add, color: Colors.green),
+                    onPressed: () {
+                      if (_newTaskController.text.trim().isNotEmpty) {
+                        setState(() {
+                          _controllers.add(TextEditingController(text: _newTaskController.text.trim()));
+                          _newTaskController.clear();
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('取消'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final newTasks = _controllers
+                .map((controller) => controller.text.trim())
+                .where((task) => task.isNotEmpty)
+                .toList();
+
+            widget.onSave(newTasks);
+            Navigator.of(context).pop();
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Color(0xFF88D8B0),
+          ),
+          child: Text('保存'),
+        ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    for (var controller in _controllers) {
+      controller.dispose();
+    }
+    _newTaskController.dispose();
     super.dispose();
   }
 }
