@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
-import 'subtask_detail_view.dart'; // 新建子任务详情页
+import 'subtask_detail_view.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:io';
-import 'enums.dart';
+import '../models/task.dart';
+import '../models/role.dart';
 import 'log_view_detail.dart';
 
 class TaskDetailView extends StatefulWidget {
-  final Map<String, dynamic> task;
-  final UserRole userRole;
+  final Task task;
+  final Role userRole;
   final String currentUserId;
-  final Function(Map<String, dynamic>) onTaskUpdated;
+  final Function(Task) onTaskUpdated;
 
   TaskDetailView({
     required this.task,
@@ -24,12 +25,25 @@ class TaskDetailView extends StatefulWidget {
 }
 
 class _TaskDetailViewState extends State<TaskDetailView> {
-  late Map<String, dynamic> _currentTask;
+  late Task _currentTask;
+  late Map<String, dynamic> _dynamicProperties;
 
   @override
   void initState() {
     super.initState();
-    _currentTask = Map<String, dynamic>.from(widget.task);
+    _currentTask = widget.task;
+
+    // 初始化动态属性，用于兼容旧UI和模拟任务进度/子任务/打卡
+    _dynamicProperties = {
+      // 占位符字段
+      'emoji': '📝',
+      'progress': 0.0,
+      'log': '暂无日志',
+      'assignedTo': _currentTask.creatorId,
+      'subtasks': [], // 需后续接入 Subtask Model
+      'checkIns': [], // 需后续接入 Attachment/Comment/Log Model
+      'collaborators': ['N/A'], // 需后续接入 Team/User Model
+    };
   }
 
   @override
@@ -57,7 +71,8 @@ class _TaskDetailViewState extends State<TaskDetailView> {
             SizedBox(height: 20),
             _buildTaskLog(),
             SizedBox(height: 20),
-            if (_currentTask['assignedTo'] == widget.currentUserId)
+            // 检查是否分配给自己
+            if (_dynamicProperties['assignedTo'] == widget.currentUserId)
               Center(
                 child: ElevatedButton(
                   onPressed: _handleCheckIn,
@@ -94,12 +109,13 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                     color: Colors.white.withOpacity(0.3),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Center(child: Text(_currentTask['emoji'], style: TextStyle(fontSize: 24))),
+                  // 使用动态属性的 Emoji
+                  child: Center(child: Text(_dynamicProperties['emoji'], style: TextStyle(fontSize: 24))),
                 ),
                 SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    _currentTask['title'],
+                    _currentTask.title, // <--- 强类型访问
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -111,32 +127,35 @@ class _TaskDetailViewState extends State<TaskDetailView> {
             ),
             SizedBox(height: 12),
             Text(
-              _currentTask['description'],
+              _currentTask.description, // <--- 强类型访问
               style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.9), height: 1.5),
             ),
             SizedBox(height: 12),
             Wrap(
-              spacing: 8.0, // 子组件之间的水平间距
-              runSpacing: 4.0, // 子组件之间的垂直间距
+              spacing: 8.0,
+              runSpacing: 4.0,
               children: [
                 Chip(
+                  // 强类型访问
                   label: Text(
-                    _getStatusText(_currentTask['status']),
+                    _getStatusText(_currentTask.status),
                     style: TextStyle(color: Colors.white, fontSize: 12),
                   ),
-                  backgroundColor: _getStatusColor(_currentTask['status']),
+                  // 强类型访问
+                  backgroundColor: _getStatusColor(_currentTask.status),
                 ),
               ],
             ),
             SizedBox(height: 12),
+            // 使用动态属性的进度
             LinearProgressIndicator(
-              value: _currentTask['progress'],
+              value: _dynamicProperties['progress'],
               backgroundColor: Colors.white.withOpacity(0.3),
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
             SizedBox(height: 8),
             Text(
-              '进度: ${(_currentTask['progress'] * 100).toInt()}%',
+              '进度: ${(_dynamicProperties['progress'] * 100).toInt()}%',
               style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.9)),
             ),
           ],
@@ -145,7 +164,23 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     );
   }
 
+  // TaskDetailView.dart 文件，替换整个 _buildTaskLog 方法
+
   Widget _buildTaskLog() {
+    // 1. 获取核心内容
+    final String logContent = _dynamicProperties['log'] ?? '暂无日志';
+
+    // 2. 构造 LogDetailView 所需的完整 Map 数据结构 (使用占位符)
+    final Map<String, dynamic> logData = {
+      'title': '任务日志: ${_currentTask.title}', // 动态获取
+      'author': '日志人', // 占位符
+      'authorAvatar': '📄', // 占位符
+      'date': DateTime.now(), // 使用 DateTime 类型
+      'content': logContent,
+      'status': '待审批', // 占位符
+      'tags': ['任务', '汇报'], // 占位符
+    };
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -160,7 +195,8 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               context,
               MaterialPageRoute(
                 builder: (context) => LogDetailView(
-                  log: _currentTask['log'] ?? '暂无日志',
+                  // ✅ 传递 Map 类型
+                  log: logData,
                 ),
               ),
             );
@@ -176,7 +212,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
-                _currentTask['log'] ?? '暂无日志',
+                logContent,
                 style: TextStyle(fontSize: 14, color: Color(0xFF666666), height: 1.5),
                 maxLines: 5,
                 overflow: TextOverflow.ellipsis,
@@ -189,7 +225,8 @@ class _TaskDetailViewState extends State<TaskDetailView> {
   }
 
   Widget _buildSubtasks() {
-    List<dynamic> subtasks = _currentTask['subtasks'] ?? [];
+    // 使用动态属性的子任务列表
+    List<dynamic> subtasks = _dynamicProperties['subtasks'] ?? [];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -227,7 +264,10 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                           setState(() {
                             subtasks[index] = updatedSubtask;
                             int completedCount = subtasks.where((s) => s['completed']).length;
-                            _currentTask['progress'] = subtasks.isNotEmpty ? completedCount / subtasks.length : 0.0;
+                            // 更新动态属性中的进度
+                            _dynamicProperties['progress'] = subtasks.isNotEmpty ? completedCount / subtasks.length : 0.0;
+
+                            // 暂时将原 Task 对象传回，依赖父组件刷新整个列表
                             widget.onTaskUpdated(_currentTask);
                           });
                         },
@@ -279,7 +319,8 @@ class _TaskDetailViewState extends State<TaskDetailView> {
   }
 
   Widget _buildCollaborators() {
-    List<String> collaborators = _currentTask['collaborators'] ?? [];
+    // 使用动态属性的协作者列表
+    List<String> collaborators = _dynamicProperties['collaborators'] ?? [];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -302,25 +343,38 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     );
   }
 
+  // 状态帮助函数：使用强类型 TaskStatus，与 Task_view.dart 保持一致
   String _getStatusText(TaskStatus status) {
     switch (status) {
-      case TaskStatus.pending:
-        return '待开始';
+      case TaskStatus.published:
+        return '已发布';
+      case TaskStatus.assigned:
+        return '已分配';
       case TaskStatus.inProgress:
         return '进行中';
+      case TaskStatus.reported:
+        return '已汇报';
       case TaskStatus.completed:
         return '已完成';
+      case TaskStatus.closed:
+        return '已关闭';
     }
   }
 
   Color _getStatusColor(TaskStatus status) {
     switch (status) {
-      case TaskStatus.pending:
-        return Color(0xFFFFE66D);
+      case TaskStatus.published:
+        return Color(0xFF999999);
+      case TaskStatus.assigned:
+        return Color(0xFFFF8C42);
       case TaskStatus.inProgress:
         return Color(0xFF4ECDC4);
+      case TaskStatus.reported:
+        return Colors.purple;
       case TaskStatus.completed:
         return Color(0xFF88D8B0);
+      case TaskStatus.closed:
+        return Colors.black45;
     }
   }
 
@@ -458,18 +512,19 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                   onPressed: (capturedImage != null && currentPosition != null)
                       ? () {
                     Navigator.pop(context);
+                    // 🚨 关键更新：修改动态属性Map，并通知父组件任务被更新（尽管没有修改Task核心字段）
                     setState(() {
-                      _currentTask['checkIns'].add({
+                      _dynamicProperties['checkIns'].add({
                         'userId': widget.currentUserId,
                         'timestamp': DateTime.now(),
                         'photo': capturedImage!.path,
                         'location': locationAddress ?? '${currentPosition!.latitude}, ${currentPosition!.longitude}',
                         'note': noteController.text.isNotEmpty ? noteController.text : '写日志'
                       });
-                      widget.onTaskUpdated(_currentTask);
+                      widget.onTaskUpdated(_currentTask); // 通知父组件更新
                     });
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('打卡成功')),
+                      SnackBar(content: Text('日志记录成功')),
                     );
                   }
                       : null,

@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:io';
-import 'enums.dart';
+import '../models/role.dart';
 
 class SubtaskDetailView extends StatefulWidget {
   final Map<String, dynamic> subtask;
-  final UserRole userRole; // 添加 userRole 参数
+  final Role userRole;
   final String currentUserId;
   final Function(Map<String, dynamic>) onSubtaskUpdated;
 
@@ -39,6 +39,7 @@ class _SubtaskDetailViewState extends State<SubtaskDetailView> {
   Widget build(BuildContext context) {
     List<dynamic> checkIns = _currentSubtask['checkIns'] ?? [];
     bool isOwnSubtask = _currentSubtask['assignedTo'] == widget.currentUserId;
+    bool hasManagementPermission = widget.userRole.roleId <= 3;
 
     return Scaffold(
       backgroundColor: Color(0xFFF8F9FA),
@@ -73,7 +74,7 @@ class _SubtaskDetailViewState extends State<SubtaskDetailView> {
               style: TextStyle(fontSize: 14, color: Color(0xFF666666)),
             ),
             SizedBox(height: 20),
-            if (isOwnSubtask || widget.userRole == UserRole.teamLeader)
+            if (isOwnSubtask || hasManagementPermission)
               ElevatedButton(
                 onPressed: _showCheckInDialog,
                 child: Text('打卡'),

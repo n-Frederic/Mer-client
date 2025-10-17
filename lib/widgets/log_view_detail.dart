@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 class LogDetailView extends StatelessWidget {
   final Map<String, dynamic> log;
-
   const LogDetailView({Key? key, required this.log}) : super(key: key);
 
   Color _getStatusColor(String status) {
