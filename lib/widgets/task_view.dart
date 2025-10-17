@@ -18,11 +18,12 @@ class _CalendarViewState extends State<CalendarView>
   DateTime _currentDate = DateTime.now();
   late TabController _tabController;
   UserRole _currentUserRole = UserRole.teamLeader;
-  String _currentUserId = '张三';
+  String _currentUserId = '1';
   Map<String, dynamic>? _currentTask;
   String _taskFilterMode = 'my';
   String _taskSearchTerm = '';
-
+  late Future<List<Task>> _tasksFuture;
+  List<Task> _cachedTasks = [];
   DateTime _selectedDay = DateTime.now();
 
   @override
@@ -30,7 +31,7 @@ class _CalendarViewState extends State<CalendarView>
     super.initState();
     _selectedDay =
         DateTime(_currentDate.year, _currentDate.month, _currentDate.day);
-    _loadTasks();
+    _tasksFuture = _fetchTasksByMode(_taskFilterMode, _currentUserId);
     _tabController = TabController(length: 2, vsync: this);
   }
 
@@ -42,51 +43,31 @@ class _CalendarViewState extends State<CalendarView>
 
   List<Map<String, dynamic>> _events = [];
 
-  void _loadTasks() {
-    final now = DateTime.now();
+  Future<List<Task>> _fetchTasksByMode(String mode, String userId) async {
+    try {
+      final response = mode == 'my'
+          ? await TaskService.fetchPersonalTasks(userId: userId)
+          : await TaskService.fetchAllTasks();
+      if (mounted) {
+        setState(() {
+          _cachedTasks = response.tasks;
+        });
+      }
+      return response.tasks;
+    } catch (e) {
+      print('Error fetching tasks: $e');
+      rethrow;
+    }
+  }
 
-    _events = [
-      {
-        'id': '1',
-        'date': now.add(Duration(days: 2)),
-        'title': '完成Q4季度报告',
-        'time': '09:00',
-        'color': Color(0xFFFF6B9D),
-        'emoji': '📊',
-        'type': 'report',
-        'status': TaskStatus.inProgress,
-        'progress': 0.6,
-        'owner': '张三',
-        'assignedTo': '张三',
-        'collaborators': ['李四', '王五'],
-        'log': '2025-09-10: 任务分配\n2025-09-15: 进行中',
-        'description': '完成第四季度的详细业务报告，包括销售数据分析和市场趋势预测',
-        'subtasks': [],
-        'checkIns': [],
-        'requiresLocationCheckIn': true,
-        'requiresPhotoCheckIn': true,
-      },
-      {
-        'id': '2',
-        'date': now.add(Duration(days: 5)),
-        'title': '会议室设备检查',
-        'time': '14:00',
-        'color': Color(0xFF4ECDC4),
-        'emoji': '🛠️',
-        'type': 'maintenance',
-        'status': TaskStatus.assigned,
-        'progress': 0.0,
-        'owner': '李四',
-        'assignedTo': '李四',
-        'collaborators': ['王五'],
-        'log': '2025-09-15: 任务分配',
-        'description': '组织一次团队建设活动以提高凝聚力',
-        'subtasks': [],
-        'checkIns': [],
-        'requiresLocationCheckIn': false,
-        'requiresPhotoCheckIn': false,
-      },
-    ];
+  // 筛选模式切换时，触发新的数据加载
+  void _changeTaskFilterMode(String mode) {
+    if (_taskFilterMode != mode) {
+      setState(() {
+        _taskFilterMode = mode;
+        _tasksFuture = _fetchTasksByMode(mode, _currentUserId);
+      });
+    }
   }
 
   bool _isSameDate(DateTime a, DateTime b) {
@@ -359,7 +340,8 @@ class _CalendarViewState extends State<CalendarView>
   }
 
   Widget _buildMonthView() {
-    if (_selectedDay.year != _currentDate.year || _selectedDay.month != _currentDate.month) {
+    if (_selectedDay.year != _currentDate.year ||
+        _selectedDay.month != _currentDate.month) {
       _selectedDay = DateTime(_currentDate.year, _currentDate.month, 1);
     }
 
@@ -367,10 +349,12 @@ class _CalendarViewState extends State<CalendarView>
     final firstDayOfMonth = DateTime(_currentDate.year, _currentDate.month, 1);
     // firstWeekday: 1=Mon, ..., 7=Sun. (Dart standard)
     // firstWeekdayOffset: Calendar starts on Sun (index 0). Sun=0, Mon=1, ..., Sat=6.
-    final int firstWeekdayOffset = firstDayOfMonth.weekday == 7 ? 0 : firstDayOfMonth.weekday;
+    final int firstWeekdayOffset =
+        firstDayOfMonth.weekday == 7 ? 0 : firstDayOfMonth.weekday;
 
     // 计算本月总天数
-    final daysInMonth = DateTime(_currentDate.year, _currentDate.month + 1, 0).day;
+    final daysInMonth =
+        DateTime(_currentDate.year, _currentDate.month + 1, 0).day;
 
     // 总共需要的单元格数量 (前面的空白 + 月份天数)
     final totalCells = firstWeekdayOffset + daysInMonth;
@@ -420,7 +404,8 @@ class _CalendarViewState extends State<CalendarView>
                   return Row(
                     children: List.generate(7, (dayIndex) {
                       final cellIndex = weekIndex * 7 + dayIndex;
-                      return Expanded(child: _buildCalendarCellFixed(cellIndex));
+                      return Expanded(
+                          child: _buildCalendarCellFixed(cellIndex));
                     }),
                   );
                 }),
@@ -1017,8 +1002,8 @@ class _CalendarViewState extends State<CalendarView>
       ),
       child: Text(
         text,
-        style: TextStyle(
-            color: color, fontSize: 12, fontWeight: FontWeight.w500),
+        style:
+            TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500),
       ),
     );
   }
