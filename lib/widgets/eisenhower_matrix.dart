@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'eisenhower_matrix.dart';
 
 class EisenhowerMatrix extends StatefulWidget {
   @override
@@ -13,13 +12,33 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
   bool _isEditingNote = false;
   final TextEditingController _noteController = TextEditingController();
 
-  // 四个板块的数据
-  List<String> _companyImportantTasks = [];
-  List<String> _companyAssignedTasks = [];
-  List<String> _personalImportantTasks = [];
-  List<String> _personalLogs = [];
+  // 模拟的静态数据
+  List<String> _companyImportantTasks = [
+    "优化项目架构",
+    "完成季度汇报",
+    "客户方案设计",
+    "团队例会准备"
+  ];
 
-  bool _isLoading = true;
+  List<String> _companyAssignedTasks = [
+    "完成UI重构任务",
+    "撰写项目文档",
+    "测试接口联调",
+  ];
+
+  List<String> _personalImportantTasks = [
+    "阅读30分钟技术书籍",
+    "整理代码仓库",
+    "撰写开发日志"
+  ];
+
+  List<String> _personalLogs = [
+    "今日进展良好，完成主要任务",
+    "尝试了新UI动画方案",
+    "优化了接口响应速度"
+  ];
+
+  bool _isLoading = false; // 不再从接口加载
 
   @override
   void initState() {
@@ -39,49 +58,14 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
       );
     });
 
-    _loadAllData();
-  }
-
-  Future<void> _loadAllData() async {
-    try {
-      setState(() {
-        _isLoading = true;
-      });
-
-      // 并行加载所有数据
-      final results = await Future.wait([
-        TaskService.getCompanyImportantTasks(),
-        TaskService.getCompanyAssignedTasks(),
-        TaskService.getPersonalImportantTasks(),
-        TaskService.getPersonalLogs(),
-      ]);
-
-      setState(() {
-        _companyImportantTasks = results[0];
-        _companyAssignedTasks = results[1];
-        _personalImportantTasks = results[2];
-        _personalLogs = results[3];
-        _isLoading = false;
-      });
-
-      _animationController.forward();
-    } catch (e) {
-      print('Error loading data: $e');
-      setState(() {
-        _isLoading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('数据加载失败，请检查网络连接'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+    _animationController.forward(); // 直接播放动画
   }
 
   Future<void> _refreshData() async {
-    await _loadAllData();
+    // 模拟刷新动作
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("数据已刷新（静态示例）")),
+    );
   }
 
   @override
@@ -101,7 +85,6 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
-            // 刷新按钮和个人备注区域
             Row(
               children: [
                 IconButton(
@@ -109,24 +92,17 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
                   icon: Icon(Icons.refresh),
                   tooltip: '刷新数据',
                 ),
-                Expanded(
-                  child: _buildPersonalNoteCard(),
-                ),
+                Expanded(child: _buildPersonalNoteCard()),
               ],
             ),
             SizedBox(height: 12),
-
-            // 四象限矩阵
             Expanded(
-              child: _isLoading
-                  ? Center(child: CircularProgressIndicator())
-                  : GridView.count(
+              child: GridView.count(
                 crossAxisCount: 2,
                 crossAxisSpacing: 8,
                 mainAxisSpacing: 8,
                 childAspectRatio: 0.7,
                 children: [
-                  // 公司重要事项（只读）
                   _buildQuadrantCard(
                     title: "公司10大重要事项",
                     emoji: "🏢",
@@ -134,11 +110,8 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
                     items: _companyImportantTasks,
                     isReadOnly: true,
                     animation: _cardAnimations[0],
-                    onTap: () {
-                      _showTaskDetails("公司重要事项", _companyImportantTasks);
-                    },
+                    onTap: () => _showTaskDetails("公司重要事项", _companyImportantTasks),
                   ),
-                  // 公司派发任务（只读）
                   _buildQuadrantCard(
                     title: "公司10大派发任务",
                     emoji: "📋",
@@ -146,11 +119,8 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
                     items: _companyAssignedTasks,
                     isReadOnly: true,
                     animation: _cardAnimations[1],
-                    onTap: () {
-                      _showTaskDetails("公司派发任务", _companyAssignedTasks);
-                    },
+                    onTap: () => _showTaskDetails("公司派发任务", _companyAssignedTasks),
                   ),
-                  // 个人重要事项（可编辑）
                   _buildQuadrantCard(
                     title: "个人10大重要事项",
                     emoji: "⭐",
@@ -158,11 +128,8 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
                     items: _personalImportantTasks,
                     isReadOnly: false,
                     animation: _cardAnimations[2],
-                    onTap: () {
-                      _editPersonalTasks();
-                    },
+                    onTap: _editPersonalTasks,
                   ),
-                  // 个人日志（只读）
                   _buildQuadrantCard(
                     title: "个人日志",
                     emoji: "📝",
@@ -170,9 +137,7 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
                     items: _personalLogs,
                     isReadOnly: true,
                     animation: _cardAnimations[3],
-                    onTap: () {
-                      _showTaskDetails("个人日志", _personalLogs);
-                    },
+                    onTap: () => _showTaskDetails("个人日志", _personalLogs),
                   ),
                 ],
               ),
@@ -183,6 +148,7 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
     );
   }
 
+  // ====== Personal Note Card ======
   Widget _buildPersonalNoteCard() {
     return Card(
       elevation: 8,
@@ -251,6 +217,7 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
     );
   }
 
+  // ====== Quadrant Card ======
   Widget _buildQuadrantCard({
     required String title,
     required String emoji,
@@ -304,10 +271,7 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
                       ? Center(
                     child: Text(
                       "暂无数据",
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
                     ),
                   )
                       : ListView.builder(
@@ -364,7 +328,7 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
     );
   }
 
-  // 显示任务详情（只读板块使用）
+  // ====== Show Details Dialog ======
   void _showTaskDetails(String title, List<String> items) {
     showDialog(
       context: context,
@@ -398,26 +362,19 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
     );
   }
 
-  // 编辑个人重要事项
+  // ====== Edit Personal Tasks ======
   void _editPersonalTasks() {
     showDialog(
       context: context,
       builder: (context) => PersonalTasksEditor(
         tasks: List.from(_personalImportantTasks),
         onSave: (newTasks) async {
-          final success = await TaskService.updatePersonalImportantTasks(newTasks);
-          if (success) {
-            setState(() {
-              _personalImportantTasks = newTasks;
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('个人重要事项已更新')),
-            );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('更新失败，请重试')),
-            );
-          }
+          setState(() {
+            _personalImportantTasks = newTasks;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('个人重要事项已更新（本地示例）')),
+          );
         },
       ),
     );
@@ -431,7 +388,7 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
   }
 }
 
-// 个人重要事项编辑组件
+// ====== PersonalTasksEditor ======
 class PersonalTasksEditor extends StatefulWidget {
   final List<String> tasks;
   final Function(List<String>) onSave;
@@ -472,7 +429,6 @@ class _PersonalTasksEditorState extends State<PersonalTasksEditor> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 现有任务列表
               ..._controllers.asMap().entries.map((entry) {
                 int index = entry.key;
                 TextEditingController controller = entry.value;
@@ -501,10 +457,7 @@ class _PersonalTasksEditorState extends State<PersonalTasksEditor> {
                   ),
                 );
               }).toList(),
-
               SizedBox(height: 16),
-
-              // 添加新任务
               Row(
                 children: [
                   Expanded(
