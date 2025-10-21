@@ -73,9 +73,15 @@ class _CalendarViewState extends State<CalendarView>
 
   Future<List<Task>> _fetchTasksByMode(String mode, String userId) async {
     try {
-      final response = mode == 'my'
-          ? await TaskService.fetchPersonalTasks(userId: userId)
-          : await TaskService.fetchAllTasks();
+      // 逻辑简化：总是调用获取个人任务的 API，因为列表只展示个人任务。
+      // 如果 mode 是 'all'，则表示展示我相关的全部任务（包括我创建的、分配给我的等）。
+      final response = await TaskService.fetchPersonalTasks(
+        userId: userId,
+        // 可以在这里根据 mode 传递不同的状态参数，例如：
+        // status: mode == 'my' ? 'InProgress' : null,
+      );
+
+      // 缓存数据
       if (mounted) {
         setState(() {
           _cachedTasks = response.tasks;
@@ -83,18 +89,9 @@ class _CalendarViewState extends State<CalendarView>
       }
       return response.tasks;
     } catch (e) {
+      // 打印错误信息
       print('Error fetching tasks: $e');
       rethrow;
-    }
-  }
-
-  // 筛选模式切换时，触发新的数据加载
-  void _changeTaskFilterMode(String mode) {
-    if (_taskFilterMode != mode) {
-      setState(() {
-        _taskFilterMode = mode;
-        _tasksFuture = _fetchTasksByMode(mode, _currentUserId);
-      });
     }
   }
 
@@ -1164,36 +1161,95 @@ class _CalendarViewState extends State<CalendarView>
     );
   }
 
-  // Task_view.dart 内，替换整个 _buildTaskListView 方法
-
   Widget _buildTaskListView() {
     return Column(
       children: [
-        // ... (Filter UI 保持不变)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            children: [
+              _buildFilterButton('my', '我的任务'),
+              SizedBox(width: 8),
+              _buildFilterButton('all', '全部任务'),
+              SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: '搜索任务...',
+                    prefixIcon: Icon(Icons.search, color: Color(0xFF999999)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding:
+                    EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _taskSearchTerm = value;
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
         Expanded(
           // 使用 FutureBuilder 接入 API 数据，监听任务 Future
           child: FutureBuilder<List<Task>>(
             future: _tasksFuture,
             builder: (context, snapshot) {
               // --- 状态处理：加载中 ---
-              // 还需要等待 Role 对象加载完成，我们用 FutureBuilder.wait 模拟此行为
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return Center(child: CircularProgressIndicator());
               }
 
-              // ... (错误和数据渲染逻辑保持不变)
+              // --- 状态处理：错误 ---
+              if (snapshot.hasError) {
+                return Center(
+                    child: Text('加载任务失败: ${snapshot.error}',
+                        style: TextStyle(color: Colors.red)));
+              }
 
+              // --- 数据渲染 ---
               if (snapshot.hasData) {
                 List<Task> allTasks = snapshot.data!;
+                List<Task> tasksToRender = allTasks; // 默认为 API 返回的全部
 
-                // ... (搜索和排序逻辑保持不变)
+                // 1. 根据筛选模式进行前端过滤
+                if (_taskFilterMode == 'my') {
+                  // 'my' 模式：只显示当前用户创建的任务 (CreatorId 筛选)
+                  tasksToRender = allTasks.where((task) => task.creatorId == _currentUserId).toList();
+                }
+
+                // 2. 应用搜索过滤
+                if (_taskSearchTerm.isNotEmpty) {
+                  final searchTerm = _taskSearchTerm.toLowerCase();
+                  tasksToRender = tasksToRender.where((task) {
+                    return task.title.toLowerCase().contains(searchTerm) ||
+                        task.description.toLowerCase().contains(searchTerm);
+                  }).toList();
+                }
+
+                // 3. 排序 (例如按截止日期)
+                tasksToRender.sort((a, b) =>
+                a.dueAt?.compareTo(b.dueAt ?? DateTime(9999)) ?? -1);
+
+                // 任务列表为空
+                if (tasksToRender.isEmpty) {
+                  return Center(
+                      child: Text('暂无任务',
+                          style: TextStyle(color: Color(0xFF666666))));
+                }
 
                 // 渲染列表
                 return ListView.builder(
                   padding: EdgeInsets.zero,
-                  itemCount: allTasks.length,
+                  itemCount: tasksToRender.length, // 使用筛选后的列表
                   itemBuilder: (context, index) {
-                    final task = allTasks[index];
+                    final task = tasksToRender[index]; // 使用筛选后的列表
                     return GestureDetector(
                       onTap: () {
                         // 🚀 最终状态：直接传递强类型 Task 对象
@@ -1203,17 +1259,73 @@ class _CalendarViewState extends State<CalendarView>
                             builder: (context) =>
                                 TaskDetailView(
                                   task: task,
-                                  // 【修改】传递 Role 对象
                                   userRole: _currentUserRole,
                                   currentUserId: _currentUserId,
                                   onTaskUpdated: (updatedTask) {
-                                    // ...
+                                    // 重新刷新列表
+                                    setState(() {
+                                      _tasksFuture = _fetchTasksByMode(
+                                          _taskFilterMode, _currentUserId);
+                                    });
                                   },
                                 ),
                           ),
                         );
                       },
-                      // ... (UI 渲染逻辑保持不变)
+                      child: Container(
+                        margin:
+                        EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 8,
+                                offset: Offset(0, 4)),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: Colors.blueAccent.withOpacity(0.5), // 占位符颜色
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Center(
+                                  child: Text('📝',
+                                      style: TextStyle(fontSize: 20))), // 占位符 Emoji
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    task.title,
+                                    style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    // 格式化日期，如果 dueAt 为空则显示 '未设置截止日期'
+                                    task.dueAt != null
+                                        ? '截止: ${task.dueAt!.month}月${task.dueAt!.day}日'
+                                        : '截止: 未设置',
+                                    style: TextStyle(
+                                        fontSize: 12, color: Color(0xFF666666)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // 任务状态芯片
+                            _buildStatusChip(task.status),
+                          ],
+                        ),
+                      ),
                     );
                   },
                 );
@@ -1225,8 +1337,6 @@ class _CalendarViewState extends State<CalendarView>
       ],
     );
   }
-
-  // Task_view.dart 内，替换整个 _handleCheckIn 方法
 
   Future<void> _handleCheckIn() async {
     // ⚠️ 注意：此函数在 Task_view.dart 中，因此它只能触发刷新，无法直接获取正在打卡的 Task 对象。
