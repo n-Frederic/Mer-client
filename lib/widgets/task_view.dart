@@ -78,7 +78,7 @@ class _CalendarViewState extends State<CalendarView>
       final response = await TaskService.fetchPersonalTasks(
         userId: userId,
         // 可以在这里根据 mode 传递不同的状态参数，例如：
-        // status: mode == 'my' ? 'InProgress' : null,
+        status: mode == 'my' ? 'InProgress' : null,
       );
 
       // 缓存数据
