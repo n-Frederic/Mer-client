@@ -9,8 +9,8 @@ class EisenhowerMatrixService {
 
   static const bool useMockData = false; // 设为 false 使用真实接口
 
-  // static const String _baseUrl = "http://10.0.2.2:8080/api"; // Android 模拟器
-  static const String _baseUrl = "http://10.61.237.155:8080/api"; // 替换为实际后端地址
+  static const String _baseUrl = "http://10.0.2.2:8080/api"; // Android 模拟器
+  // static const String _baseUrl = "http://10.61.237.155:8080/api"; // 替换为实际后端地址
   // static const String _baseUrl = "http://192.168.x.x:8080/api"; // 局域网真机测试（替换为您的电脑IP
 
   final http.Client client;

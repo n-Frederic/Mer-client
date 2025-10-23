@@ -73,15 +73,19 @@ class _CalendarViewState extends State<CalendarView>
 
   Future<List<Task>> _fetchTasksByMode(String mode, String userId) async {
     try {
-      // 逻辑简化：总是调用获取个人任务的 API，因为列表只展示个人任务。
-      // 如果 mode 是 'all'，则表示展示我相关的全部任务（包括我创建的、分配给我的等）。
-      final response = await TaskService.fetchPersonalTasks(
-        userId: userId,
-        // 可以在这里根据 mode 传递不同的状态参数，例如：
-        status: mode == 'my' ? 'InProgress' : null,
-      );
+      TaskListResponse response;
 
-      // 缓存数据
+      if (mode == 'my') {
+        // 'my' 模式 (我要做的事) -> 调用 /tasks/personal
+        response = await TaskService.fetchPersonalTasks(
+          userId: userId,
+        );
+      } else {
+        // 'all' 模式 (我能看到的事) -> 调用 /tasks/scoped
+        response = await TaskService.fetchScopedTasks(
+          userId: userId,
+        );
+      }
       if (mounted) {
         setState(() {
           _cachedTasks = response.tasks;
@@ -89,8 +93,7 @@ class _CalendarViewState extends State<CalendarView>
       }
       return response.tasks;
     } catch (e) {
-      // 打印错误信息
-      print('Error fetching tasks: $e');
+      print('Error fetching tasks (mode: $mode): $e');
       rethrow;
     }
   }
@@ -1132,6 +1135,8 @@ class _CalendarViewState extends State<CalendarView>
       onTap: () {
         setState(() {
           _taskFilterMode = mode;
+          // 【关键修改】模式切换时，必须重新调用 API
+          _tasksFuture = _fetchTasksByMode(_taskFilterMode, _currentUserId);
         });
       },
       child: Container(
@@ -1218,13 +1223,7 @@ class _CalendarViewState extends State<CalendarView>
                 List<Task> allTasks = snapshot.data!;
                 List<Task> tasksToRender = allTasks; // 默认为 API 返回的全部
 
-                // 1. 根据筛选模式进行前端过滤
-                if (_taskFilterMode == 'my') {
-                  // 'my' 模式：只显示当前用户创建的任务 (CreatorId 筛选)
-                  tasksToRender = allTasks.where((task) => task.creatorId == _currentUserId).toList();
-                }
-
-                // 2. 应用搜索过滤
+                // 应用搜索过滤
                 if (_taskSearchTerm.isNotEmpty) {
                   final searchTerm = _taskSearchTerm.toLowerCase();
                   tasksToRender = tasksToRender.where((task) {
