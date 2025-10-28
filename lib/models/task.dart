@@ -1,3 +1,5 @@
+import 'user.dart';
+
 enum TaskPriority {
   low('Low'),
   medium('Medium'),
@@ -7,10 +9,10 @@ enum TaskPriority {
   final String sqlValue;
   const TaskPriority(this.sqlValue);
 
-  static TaskPriority fromString(String value) {
+  static TaskPriority fromString(String? value) {
     return values.firstWhere(
           (e) => e.sqlValue == value,
-      orElse: () => TaskPriority.low,
+      orElse: () => TaskPriority.medium,
     );
   }
 }
@@ -26,7 +28,7 @@ enum TaskStatus {
   final String sqlValue;
   const TaskStatus(this.sqlValue);
 
-  static TaskStatus fromString(String value) {
+  static TaskStatus fromString(String? value) {
     return values.firstWhere(
           (e) => e.sqlValue == value,
       orElse: () => TaskStatus.published,
@@ -38,7 +40,7 @@ class Task {
   final String taskId;
   final String title;
   final String description;
-  final String creatorId;
+  final User creator;
 
   final TaskPriority priority;
   final TaskStatus status;
@@ -52,7 +54,7 @@ class Task {
     required this.taskId,
     required this.title,
     this.description = '',
-    required this.creatorId,
+    required this.creator,
     required this.priority,
     required this.status,
     this.startAt,
@@ -62,17 +64,16 @@ class Task {
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
-    final creatorJson = json['creator'] as Map<String, dynamic>?;
-    final creatorId = creatorJson?['id']?.toString() ?? '0';
+    final User creator = User.fromJson(json['creator'] as Map<String, dynamic>);
 
     return Task(
       taskId: json['taskId'].toString(),
       title: json['title'] as String,
       description: json['description'] as String? ?? '',
-      creatorId: creatorId,
+      creator: creator,
 
-      priority: TaskPriority.fromString(json['priority'] as String),
-      status: TaskStatus.fromString(json['status'] as String),
+      priority: TaskPriority.fromString(json['priority'] as String?),
+      status: TaskStatus.fromString(json['status'] as String?),
 
       startAt: json['startAt'] != null ? DateTime.parse(json['startAt']) : null,
       dueAt: json['dueAt'] != null ? DateTime.parse(json['dueAt']) : null,
@@ -82,14 +83,11 @@ class Task {
   }
 
   Map<String, dynamic> toJson() => {
-    'task_id': taskId,
     'title': title,
     'description': description,
-    'creator_id': creatorId,
-
+    'creator': creator.toJson(),
     'priority': priority.sqlValue,
     'status': status.sqlValue,
-
     'start_at': startAt?.toIso8601String(),
     'due_at': dueAt?.toIso8601String(),
   };

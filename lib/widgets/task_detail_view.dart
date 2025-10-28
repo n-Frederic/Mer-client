@@ -77,19 +77,20 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               'emoji': '📝',
               'progress': 0.0,
               'log': '暂无日志',
-              'assignedTo': loadedTask.creatorId, // 使用 loadedTask
+              'assignedTo': loadedTask.creator.userId, // 使用 loadedTask
               'subtasks': [],
               'checkIns': [],
               'collaborators': ['N/A'],
             };
 
-            // 返回您的 UI 布局
             return SingleChildScrollView(
               padding: EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildTaskInfo(loadedTask, _dynamicProperties), // 传递 loadedTask
+                  SizedBox(height: 20),
+                  _buildTaskDetailsList(loadedTask),
                   SizedBox(height: 20),
                   _buildSubtasks(loadedTask, _dynamicProperties), // 传递 loadedTask
                   SizedBox(height: 20),
@@ -554,6 +555,93 @@ class _TaskDetailViewState extends State<TaskDetailView> {
           },
         );
       },
+    );
+  }
+  // 【新增】辅助函数：格式化日期
+  String _formatTaskDate(DateTime? date) {
+    if (date == null) {
+      return '未设置';
+    }
+    // 格式: 2025-10-28 18:30
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  // 【新增】辅助函数：用于创建列表中的每一行
+  Widget _buildDetailRow({
+    required IconData icon,
+    required String title,
+    required String value,
+    required Color iconColor,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: iconColor, size: 24),
+      title: Text(title, style: TextStyle(fontSize: 15, color: Color(0xFF666666))),
+      trailing: Text(
+        value,
+        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF333333)),
+      ),
+      dense: true,
+      contentPadding: EdgeInsets.symmetric(vertical: 2, horizontal: 8),
+    );
+  }
+
+  // 【新增】新的 UI 卡片：用于显示详细信息
+  Widget _buildTaskDetailsList(Task loadedTask) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '任务详情',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF333333)),
+        ),
+        SizedBox(height: 12),
+        Card(
+          elevation: 4,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          color: Colors.white, // 匹配其他卡片
+          child: Container(
+            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            child: Column(
+              children: [
+                _buildDetailRow(
+                  icon: Icons.person_outline,
+                  title: '创建者',
+                  value: loadedTask.creator.name, // <-- 使用新数据
+                  iconColor: Color(0xFF4ECDC4), //  teal
+                ),
+                Divider(height: 1),
+                _buildDetailRow(
+                  icon: Icons.flag_outlined,
+                  title: '优先级',
+                  value: loadedTask.priority.sqlValue, // <-- 使用新数据
+                  iconColor: Color(0xFFFF6B9D), // pink
+                ),
+                Divider(height: 1),
+                _buildDetailRow(
+                  icon: Icons.play_arrow_outlined,
+                  title: '开始时间',
+                  value: _formatTaskDate(loadedTask.startAt), // <-- 使用新数据
+                  iconColor: Color(0xFF88D8B0), // green
+                ),
+                Divider(height: 1),
+                _buildDetailRow(
+                  icon: Icons.timer_outlined,
+                  title: '截止时间',
+                  value: _formatTaskDate(loadedTask.dueAt), // <-- 使用新数据
+                  iconColor: Color(0xFFFF8C42), // orange
+                ),
+                Divider(height: 1),
+                _buildDetailRow(
+                  icon: Icons.add_circle_outline,
+                  title: '创建时间',
+                  value: _formatTaskDate(loadedTask.createdAt), // <-- 使用新数据
+                  iconColor: Color(0xFF999999), // grey
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

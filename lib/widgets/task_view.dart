@@ -5,6 +5,7 @@ import 'dart:io';
 import 'task_detail_view.dart';
 import '../models/task.dart';
 import '../services/task_service.dart';
+import '../models/user.dart';
 import '../models/role.dart';
 
 class CalendarView extends StatefulWidget {
