@@ -1,5 +1,8 @@
+// lib/models/task.dart
+
 import 'user.dart';
 
+// --- Enums (TaskPriority, TaskStatus) 保持不变 ---
 enum TaskPriority {
   low('Low'),
   medium('Medium'),
@@ -36,11 +39,12 @@ enum TaskStatus {
   }
 }
 
+// --- 【已修正】 Task 类 ---
 class Task {
   final String taskId;
   final String title;
   final String description;
-  final User creator;
+  final User? creator; // <-- 【修正】允许 creator 为空
 
   final TaskPriority priority;
   final TaskStatus status;
@@ -54,7 +58,7 @@ class Task {
     required this.taskId,
     required this.title,
     this.description = '',
-    required this.creator,
+    this.creator, // <-- 【修正】
     required this.priority,
     required this.status,
     this.startAt,
@@ -64,13 +68,19 @@ class Task {
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
-    final User creator = User.fromJson(json['creator'] as Map<String, dynamic>);
+
+    // 【修正】安全地解析 'creator' 对象
+    final creatorData = json['creator'] as Map<String, dynamic>?;
+    final User? creator = (creatorData != null)
+        ? User.fromJson(creatorData)
+        : null;
 
     return Task(
       taskId: json['taskId'].toString(),
       title: json['title'] as String,
       description: json['description'] as String? ?? '',
-      creator: creator,
+
+      creator: creator, // <-- 【修正】
 
       priority: TaskPriority.fromString(json['priority'] as String?),
       status: TaskStatus.fromString(json['status'] as String?),
@@ -85,7 +95,7 @@ class Task {
   Map<String, dynamic> toJson() => {
     'title': title,
     'description': description,
-    'creator': creator.toJson(),
+    'creator': creator?.toJson(),
     'priority': priority.sqlValue,
     'status': status.sqlValue,
     'start_at': startAt?.toIso8601String(),

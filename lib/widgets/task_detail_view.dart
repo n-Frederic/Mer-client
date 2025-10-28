@@ -77,7 +77,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               'emoji': '📝',
               'progress': 0.0,
               'log': '暂无日志',
-              'assignedTo': loadedTask.creator.userId, // 使用 loadedTask
+              'assignedTo': loadedTask.creator?.userId??'未知', // 使用 loadedTask
               'subtasks': [],
               'checkIns': [],
               'collaborators': ['N/A'],
@@ -606,21 +606,21 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 _buildDetailRow(
                   icon: Icons.person_outline,
                   title: '创建者',
-                  value: loadedTask.creator.name, // <-- 使用新数据
+                  value: loadedTask.creator?.name??'未知',
                   iconColor: Color(0xFF4ECDC4), //  teal
                 ),
                 Divider(height: 1),
                 _buildDetailRow(
                   icon: Icons.flag_outlined,
                   title: '优先级',
-                  value: loadedTask.priority.sqlValue, // <-- 使用新数据
+                  value: loadedTask.priority.sqlValue,
                   iconColor: Color(0xFFFF6B9D), // pink
                 ),
                 Divider(height: 1),
                 _buildDetailRow(
                   icon: Icons.play_arrow_outlined,
                   title: '开始时间',
-                  value: _formatTaskDate(loadedTask.startAt), // <-- 使用新数据
+                  value: _formatTaskDate(loadedTask.startAt),
                   iconColor: Color(0xFF88D8B0), // green
                 ),
                 Divider(height: 1),
