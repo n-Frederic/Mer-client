@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../models/task.dart';
 import 'auth_service.dart';
 
+
 // 定义分页响应结构
 class TaskListResponse {
   final List<Task> tasks;
@@ -126,5 +127,43 @@ class TaskService {
     if (priority != null) params['priority'] = priority;
 
     return _fetchTasks('/tasks/all', params: params);
+  }
+
+  // 获取单个任务详情
+  static Future<Task> fetchTaskById(String taskId) async {
+    final authToken = await AuthService.getSavedToken();
+    if (authToken == null) {
+      throw Exception('用户未认证，请先登录');
+    }
+
+    final uri = Uri.parse('$_baseUrl/tasks/$taskId');
+
+    try {
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+      );
+      if (response.statusCode == 200) {
+        final String jsonString = utf8.decode(response.bodyBytes);
+        final Map<String, dynamic> responseData = json.decode(jsonString);
+
+        if (responseData['ok'] == true && responseData.containsKey('task')) {
+          return Task.fromJson(responseData['task']);
+        } else {
+          throw Exception(responseData['error'] ?? '无法解析任务详情');
+        }
+
+      } else if (response.statusCode == 401) {
+        throw Exception('认证失败或Token过期，请重新登录');
+      } else {
+        throw Exception('无法加载任务详情，服务器响应码: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('TaskService 捕获到原始错误 (fetchTaskById): $e');
+      throw Exception('TaskService 请求失败: $e');
+    }
   }
 }

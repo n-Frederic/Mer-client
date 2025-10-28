@@ -5,7 +5,6 @@ import 'dart:io';
 import 'task_detail_view.dart';
 import '../models/task.dart';
 import '../services/task_service.dart';
-import '../models/user.dart';
 import '../models/role.dart';
 
 class CalendarView extends StatefulWidget {
@@ -611,7 +610,7 @@ class _CalendarViewState extends State<CalendarView>
                   MaterialPageRoute(
                     builder: (context) =>
                         TaskDetailView(
-                          task: task,
+                          taskId: task.taskId,
                           userRole: _currentUserRole, // 【修改】使用新的角色标识符
                           currentUserId: _currentUserId,
                           onTaskUpdated: (updatedTask) {
@@ -774,7 +773,7 @@ class _CalendarViewState extends State<CalendarView>
                       MaterialPageRoute(
                         builder: (context) =>
                             TaskDetailView(
-                              task: task,
+                              taskId: task.taskId,
                               userRole: _currentUserRole, // 【修改】使用新的角色标识符
                               currentUserId: _currentUserId,
                               onTaskUpdated: (updatedTask) {
@@ -991,7 +990,7 @@ class _CalendarViewState extends State<CalendarView>
                             MaterialPageRoute(
                               builder: (context) =>
                                   TaskDetailView(
-                                    task: task,
+                                    taskId: task.taskId,
                                     userRole: _currentUserRole,
                                     currentUserId: _currentUserId,
                                     onTaskUpdated: (updatedTask) {
@@ -1257,7 +1256,7 @@ class _CalendarViewState extends State<CalendarView>
                           MaterialPageRoute(
                             builder: (context) =>
                                 TaskDetailView(
-                                  task: task,
+                                  taskId: task.taskId,
                                   userRole: _currentUserRole,
                                   currentUserId: _currentUserId,
                                   onTaskUpdated: (updatedTask) {

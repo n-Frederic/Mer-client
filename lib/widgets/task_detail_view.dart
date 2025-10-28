@@ -6,15 +6,16 @@ import 'dart:io';
 import '../models/task.dart';
 import '../models/role.dart';
 import 'log_view_detail.dart';
+import '../services/task_service.dart';
 
 class TaskDetailView extends StatefulWidget {
-  final Task task;
+  final String taskId;
   final Role userRole;
   final String currentUserId;
   final Function(Task) onTaskUpdated;
 
   TaskDetailView({
-    required this.task,
+    required this.taskId,
     required this.userRole,
     required this.currentUserId,
     required this.onTaskUpdated,
@@ -25,25 +26,12 @@ class TaskDetailView extends StatefulWidget {
 }
 
 class _TaskDetailViewState extends State<TaskDetailView> {
-  late Task _currentTask;
-  late Map<String, dynamic> _dynamicProperties;
+  late Future<Task> _taskFuture;
 
   @override
   void initState() {
     super.initState();
-    _currentTask = widget.task;
-
-    // 初始化动态属性，用于兼容旧UI和模拟任务进度/子任务/打卡
-    _dynamicProperties = {
-      // 占位符字段
-      'emoji': '📝',
-      'progress': 0.0,
-      'log': '暂无日志',
-      'assignedTo': _currentTask.creatorId,
-      'subtasks': [], // 需后续接入 Subtask Model
-      'checkIns': [], // 需后续接入 Attachment/Comment/Log Model
-      'collaborators': ['N/A'], // 需后续接入 Team/User Model
-    };
+    _taskFuture = TaskService.fetchTaskById(widget.taskId);
   }
 
   @override
@@ -58,34 +46,77 @@ class _TaskDetailViewState extends State<TaskDetailView> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildTaskInfo(),
-            SizedBox(height: 20),
-            _buildSubtasks(),
-            SizedBox(height: 20),
-            _buildCollaborators(),
-            SizedBox(height: 20),
-            _buildTaskLog(),
-            SizedBox(height: 20),
-            // 检查是否分配给自己
-            if (_dynamicProperties['assignedTo'] == widget.currentUserId)
-              Center(
-                child: ElevatedButton(
-                  onPressed: _handleCheckIn,
-                  child: Text('写日志'),
-                ),
+      body: FutureBuilder<Task>(
+        future: _taskFuture, // 监听这个 Future
+        builder: (context, snapshot) {
+
+          // --- 状态 1: 加载中 ---
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          }
+
+          // --- 状态 2: 加载失败 ---
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text('加载任务详情失败: ${snapshot.error}',
+                    style: TextStyle(color: Colors.red)),
               ),
-          ],
-        ),
+            );
+          }
+
+          // --- 状态 3: 加载成功 ---
+          if (snapshot.hasData) {
+
+            // 【修正】使用清晰的局部变量名 loadedTask
+            final Task loadedTask = snapshot.data!;
+
+            // 在 build 方法内部定义占位符
+            final Map<String, dynamic> _dynamicProperties = {
+              'emoji': '📝',
+              'progress': 0.0,
+              'log': '暂无日志',
+              'assignedTo': loadedTask.creatorId, // 使用 loadedTask
+              'subtasks': [],
+              'checkIns': [],
+              'collaborators': ['N/A'],
+            };
+
+            // 返回您的 UI 布局
+            return SingleChildScrollView(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildTaskInfo(loadedTask, _dynamicProperties), // 传递 loadedTask
+                  SizedBox(height: 20),
+                  _buildSubtasks(loadedTask, _dynamicProperties), // 传递 loadedTask
+                  SizedBox(height: 20),
+                  _buildCollaborators(_dynamicProperties),
+                  SizedBox(height: 20),
+                  _buildTaskLog(loadedTask, _dynamicProperties), // 传递 loadedTask
+                  SizedBox(height: 20),
+                  if (_dynamicProperties['assignedTo'] == widget.currentUserId)
+                    Center(
+                      child: ElevatedButton(
+                        onPressed: () => _handleCheckIn(loadedTask), // 传递 loadedTask
+                        child: Text('写日志'),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          }
+
+          // 默认情况
+          return Center(child: Text('未知状态'));
+        },
       ),
     );
   }
 
-  Widget _buildTaskInfo() {
+  Widget _buildTaskInfo(Task loadedTask, Map<String, dynamic> dynamicProperties) {
     return Card(
       elevation: 8,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -109,13 +140,12 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                     color: Colors.white.withOpacity(0.3),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  // 使用动态属性的 Emoji
-                  child: Center(child: Text(_dynamicProperties['emoji'], style: TextStyle(fontSize: 24))),
+                  child: Center(child: Text(dynamicProperties['emoji'], style: TextStyle(fontSize: 24))),
                 ),
                 SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    _currentTask.title, // <--- 强类型访问
+                    loadedTask.title, // 使用 loadedTask
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -127,7 +157,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
             ),
             SizedBox(height: 12),
             Text(
-              _currentTask.description, // <--- 强类型访问
+              loadedTask.description, // 使用 loadedTask
               style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.9), height: 1.5),
             ),
             SizedBox(height: 12),
@@ -136,26 +166,23 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               runSpacing: 4.0,
               children: [
                 Chip(
-                  // 强类型访问
                   label: Text(
-                    _getStatusText(_currentTask.status),
+                    _getStatusText(loadedTask.status), // 使用 loadedTask
                     style: TextStyle(color: Colors.white, fontSize: 12),
                   ),
-                  // 强类型访问
-                  backgroundColor: _getStatusColor(_currentTask.status),
+                  backgroundColor: _getStatusColor(loadedTask.status), // 使用 loadedTask
                 ),
               ],
             ),
             SizedBox(height: 12),
-            // 使用动态属性的进度
             LinearProgressIndicator(
-              value: _dynamicProperties['progress'],
+              value: dynamicProperties['progress'],
               backgroundColor: Colors.white.withOpacity(0.3),
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
             SizedBox(height: 8),
             Text(
-              '进度: ${(_dynamicProperties['progress'] * 100).toInt()}%',
+              '进度: ${(dynamicProperties['progress'] * 100).toInt()}%',
               style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.9)),
             ),
           ],
@@ -164,21 +191,16 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     );
   }
 
-  // TaskDetailView.dart 文件，替换整个 _buildTaskLog 方法
-
-  Widget _buildTaskLog() {
-    // 1. 获取核心内容
-    final String logContent = _dynamicProperties['log'] ?? '暂无日志';
-
-    // 2. 构造 LogDetailView 所需的完整 Map 数据结构 (使用占位符)
+  Widget _buildTaskLog(Task loadedTask, Map<String, dynamic> dynamicProperties) {
+    final String logContent = dynamicProperties['log'] ?? '暂无日志';
     final Map<String, dynamic> logData = {
-      'title': '任务日志: ${_currentTask.title}', // 动态获取
-      'author': '日志人', // 占位符
-      'authorAvatar': '📄', // 占位符
-      'date': DateTime.now(), // 使用 DateTime 类型
+      'title': '任务日志: ${loadedTask.title}', // 使用 loadedTask
+      'author': '日志人',
+      'authorAvatar': '📄',
+      'date': DateTime.now(),
       'content': logContent,
-      'status': '待审批', // 占位符
-      'tags': ['任务', '汇报'], // 占位符
+      'status': '待审批',
+      'tags': ['任务', '汇报'],
     };
 
     return Column(
@@ -195,7 +217,6 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               context,
               MaterialPageRoute(
                 builder: (context) => LogDetailView(
-                  // ✅ 传递 Map 类型
                   log: logData,
                 ),
               ),
@@ -224,9 +245,8 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     );
   }
 
-  Widget _buildSubtasks() {
-    // 使用动态属性的子任务列表
-    List<dynamic> subtasks = _dynamicProperties['subtasks'] ?? [];
+  Widget _buildSubtasks(Task loadedTask, Map<String, dynamic> dynamicProperties) {
+    List<dynamic> subtasks = dynamicProperties['subtasks'] ?? [];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -261,14 +281,11 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                         userRole: widget.userRole,
                         currentUserId: widget.currentUserId,
                         onSubtaskUpdated: (updatedSubtask) {
+                          // TODO: 真正的子任务更新需要调用 API
+                          // 并刷新 _taskFuture
                           setState(() {
-                            subtasks[index] = updatedSubtask;
-                            int completedCount = subtasks.where((s) => s['completed']).length;
-                            // 更新动态属性中的进度
-                            _dynamicProperties['progress'] = subtasks.isNotEmpty ? completedCount / subtasks.length : 0.0;
-
-                            // 暂时将原 Task 对象传回，依赖父组件刷新整个列表
-                            widget.onTaskUpdated(_currentTask);
+                            _taskFuture = TaskService.fetchTaskById(widget.taskId);
+                            widget.onTaskUpdated(loadedTask); // 通知列表页也刷新
                           });
                         },
                       ),
@@ -318,9 +335,8 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     );
   }
 
-  Widget _buildCollaborators() {
-    // 使用动态属性的协作者列表
-    List<String> collaborators = _dynamicProperties['collaborators'] ?? [];
+  Widget _buildCollaborators(Map<String, dynamic> dynamicProperties) {
+    List<String> collaborators = dynamicProperties['collaborators'] ?? [];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -378,7 +394,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     }
   }
 
-  Future<void> _handleCheckIn() async {
+  Future<void> _handleCheckIn(Task loadedTask) async {
     showDialog(
       context: context,
       builder: (context) {
@@ -395,6 +411,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // --- 【恢复】拍照 UI ---
                     Container(
                       padding: EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -435,6 +452,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                       ),
                     ),
                     SizedBox(height: 12),
+                    // --- 【恢复】定位 UI ---
                     Container(
                       padding: EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -492,6 +510,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                       ),
                     ),
                     SizedBox(height: 16),
+                    // --- 【恢复】备注 UI ---
                     TextField(
                       controller: noteController,
                       decoration: InputDecoration(
@@ -512,19 +531,19 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                   onPressed: (capturedImage != null && currentPosition != null)
                       ? () {
                     Navigator.pop(context);
-                    // 🚨 关键更新：修改动态属性Map，并通知父组件任务被更新（尽管没有修改Task核心字段）
+
+                    // TODO: 在这里调用 API (例如 TaskService.createCheckIn(...))
+                    // ...
+
+                    // API 调用成功后，刷新 Future 以获取最新数据
                     setState(() {
-                      _dynamicProperties['checkIns'].add({
-                        'userId': widget.currentUserId,
-                        'timestamp': DateTime.now(),
-                        'photo': capturedImage!.path,
-                        'location': locationAddress ?? '${currentPosition!.latitude}, ${currentPosition!.longitude}',
-                        'note': noteController.text.isNotEmpty ? noteController.text : '写日志'
-                      });
-                      widget.onTaskUpdated(_currentTask); // 通知父组件更新
+                      _taskFuture = TaskService.fetchTaskById(widget.taskId);
+                      // 同时通知列表页也刷新
+                      widget.onTaskUpdated(loadedTask);
                     });
+
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('日志记录成功')),
+                      SnackBar(content: Text('日志记录成功，正在刷新...')),
                     );
                   }
                       : null,
