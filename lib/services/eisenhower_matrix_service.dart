@@ -3,15 +3,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/auth_service.dart'; // 如果文件在services目录
+import '../services/auth_service.dart';
 
 class EisenhowerMatrixService {
 
   static const bool useMockData = false; // 设为 false 使用真实接口
 
-  static const String _baseUrl = "http://10.0.2.2:8080/api"; // Android 模拟器
+  static const String _baseUrl = "http://127.0.0.1:8080/api";
+  // static const String _baseUrl = "http://10.0.2.2:8080/api"; // Android 模拟器
   // static const String _baseUrl = "http://10.61.237.155:8080/api"; // 替换为实际后端地址
-  // static const String _baseUrl = "http://192.168.x.x:8080/api"; // 局域网真机测试（替换为您的电脑IP
 
   final http.Client client;
 
@@ -19,7 +19,8 @@ class EisenhowerMatrixService {
 
   // 添加获取token的方法
   Future<Map<String, String>> _getAuthHeaders() async {
-    final token = await AuthService.getSavedToken();
+    final token = await AuthService.getSavedToken(); //获取保存的token
+    final userId = await AuthService.getSavedUserId(); // 获取用户ID
     final headers = {
       'Content-Type': 'application/json',
     };
@@ -29,6 +30,12 @@ class EisenhowerMatrixService {
       print('✅ 添加认证头，Token: ${token.substring(0, 20)}...');
     } else {
       print('❌ 未找到认证token，请求将发送无认证头');
+    }
+
+    // 如果需要用户ID，可以在请求时使用（虽然在大多数情况下，只需要 token 即可）
+    if (userId != null) {
+      headers['X-User-ID'] = userId.toString(); // 可以将用户ID作为额外头信息传递
+      print('✅ 添加用户ID到请求头: $userId');
     }
 
     return headers;
@@ -69,7 +76,7 @@ class EisenhowerMatrixService {
 
       print('🚀 请求个人任务，用户ID: $userId');
       final response = await client.get(
-        Uri.parse('$_baseUrl/personal-task/user/$userId'),
+        Uri.parse('$_baseUrl/personal-task'), //请求个人任务接口
         headers: headers,
       );
 
@@ -130,7 +137,7 @@ class EisenhowerMatrixService {
 
       print('🚀 创建个人任务，用户ID: $userId, 任务: $tasks');
       final response = await client.post(
-        Uri.parse('$_baseUrl/personal-task/user/$userId'),
+        Uri.parse('$_baseUrl/personal-task'),
         headers: headers, // === 修改：使用认证头 ===
         body: json.encode({
           'personal_tasks': tasks,
@@ -161,8 +168,8 @@ class EisenhowerMatrixService {
 
       print('🚀 更新个人任务，用户ID: $userId, 任务: $tasks');
       final response = await client.put(
-        Uri.parse('$_baseUrl/personal-task/user/$userId'),
-        headers: headers, // === 修改：使用认证头 ===
+        Uri.parse('$_baseUrl/personal-task'),
+        headers: headers, // === 使用认证头 ===
         body: json.encode({
           'personal_tasks': tasks,
         }),
