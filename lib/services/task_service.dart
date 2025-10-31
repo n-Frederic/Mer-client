@@ -112,23 +112,6 @@ class TaskService {
     return _fetchTasks('/tasks/scoped', params: params);
   }
 
-  // 获取全部任务
-  static Future<TaskListResponse> fetchAllTasks({
-    int page = 1,
-    int pageSize = 10,
-    String? status,
-    String? priority,
-  }) {
-    final Map<String, String> params = {
-      'page': page.toString(),
-      'pageSize': pageSize.toString(),
-    };
-    if (status != null) params['status'] = status;
-    if (priority != null) params['priority'] = priority;
-
-    return _fetchTasks('/tasks/all', params: params);
-  }
-
   // 获取单个任务详情
   static Future<Task> fetchTaskById(String taskId) async {
     final authToken = await AuthService.getSavedToken();
