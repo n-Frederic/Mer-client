@@ -109,7 +109,7 @@ class TaskService {
     if (priority != null) params['priority'] = priority;
 
     // 调用新的 /tasks/scoped 接口
-    return _fetchTasks('/tasks/scoped', params: params);
+    return _fetchTasks('/tasks/myView', params: params);
   }
 
   // 获取单个任务详情
