@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
-
 import '../services/auth_service.dart';
+
+import 'profile_child_screen/personal_info_screen.dart';
+import 'profile_child_screen/notifications_screen.dart';
+import 'profile_child_screen/theme_settings_screen.dart';
+import 'profile_child_screen/language_settings_screen.dart';
+import 'profile_child_screen/help_center_screen.dart';
+import 'profile_child_screen/about_app_screen.dart';
 
 class ProfileView extends StatefulWidget {
   @override
@@ -55,7 +61,6 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
               ),
               child: Column(
                 children: [
-                  // 头像
                   Container(
                     width: 80,
                     height: 80,
@@ -75,8 +80,6 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                     ),
                   ),
                   SizedBox(height: 16),
-
-                  // 用户名和职位
                   Text(
                     '小兔子',
                     style: TextStyle(
@@ -93,8 +96,6 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                     ),
                   ),
                   SizedBox(height: 24),
-
-                  // 统计数据
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
@@ -112,13 +113,66 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
-                  _buildMenuItem(Icons.person, '个人信息', '查看和编辑个人资料', Color(0xFF4ECDC4)),
-                  _buildMenuItem(Icons.security, '账户安全', '密码修改、安全设置', Color(0xFFFF6B9D)),
-                  _buildMenuItem(Icons.notifications, '消息通知', '通知设置和消息管理', Color(0xFFFFE66D)),
-                  _buildMenuItem(Icons.palette, '主题设置', '个性化界面设置', Color(0xFF88D8B0)),
-                  _buildMenuItem(Icons.language, '语言设置', '选择应用语言', Color(0xFFB8A9FF)),
-                  _buildMenuItem(Icons.help, '帮助中心', '使用帮助和常见问题', Color(0xFFFFB3BA)),
-                  _buildMenuItem(Icons.info, '关于应用', '版本信息和更新日志', Color(0xFFA8E6CF)),
+                  _buildMenuItem(
+                    Icons.person,
+                    '个人信息',
+                    '查看和编辑个人资料',
+                    Color(0xFF4ECDC4),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => PersonalInfoScreen()),
+                    ),
+                  ),
+                  _buildMenuItem(
+                    Icons.notifications,
+                    '消息通知',
+                    '通知设置和消息管理',
+                    Color(0xFFFFE66D),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => NotificationsScreen()),
+                    ),
+                  ),
+                  _buildMenuItem(
+                    Icons.palette,
+                    '主题设置',
+                    '个性化界面设置',
+                    Color(0xFF88D8B0),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => ThemeSettingsScreen()),
+                    ),
+                  ),
+                  _buildMenuItem(
+                    Icons.language,
+                    '语言设置',
+                    '选择应用语言',
+                    Color(0xFFB8A9FF),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => LanguageSettingsScreen()),
+                    ),
+                  ),
+                  _buildMenuItem(
+                    Icons.help,
+                    '帮助中心',
+                    '使用帮助和常见问题',
+                    Color(0xFFFFB3BA),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => HelpCenterScreen()),
+                    ),
+                  ),
+                  _buildMenuItem(
+                    Icons.info,
+                    '关于应用',
+                    '版本信息和更新日志',
+                    Color(0xFFA8E6CF),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => AboutAppScreen()),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -215,7 +269,14 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
     );
   }
 
-  Widget _buildMenuItem(IconData icon, String title, String subtitle, Color color) {
+  /// ✅ 新版：支持 onTap 参数
+  Widget _buildMenuItem(
+      IconData icon,
+      String title,
+      String subtitle,
+      Color color, {
+        VoidCallback? onTap,
+      }) {
     return Container(
       margin: EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -255,20 +316,18 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
             color: Color(0xFF666666),
           ),
         ),
-        trailing: Icon(
-          Icons.chevron_right,
-          color: Color(0xFF999999),
-        ),
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('$title 功能开发中...'),
-              backgroundColor: color,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-        },
+        trailing: Icon(Icons.chevron_right, color: Color(0xFF999999)),
+        onTap: onTap ??
+                () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('$title 功能开发中...'),
+                  backgroundColor: color,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              );
+            },
       ),
     );
   }
@@ -289,21 +348,13 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
-                  ),
-                ),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF666666),
-                  ),
-                ),
+                Text(title,
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF333333))),
+                Text(description,
+                    style: TextStyle(fontSize: 12, color: Color(0xFF666666))),
               ],
             ),
           ),
@@ -325,7 +376,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
             child: Text('取消'),
           ),
           ElevatedButton(
-            onPressed: () async{
+            onPressed: () async {
               Navigator.pop(context);
               await AuthService.logout();
               Navigator.pushReplacementNamed(context, '/');
