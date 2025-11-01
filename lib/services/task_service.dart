@@ -109,24 +109,7 @@ class TaskService {
     if (priority != null) params['priority'] = priority;
 
     // 调用新的 /tasks/scoped 接口
-    return _fetchTasks('/tasks/scoped', params: params);
-  }
-
-  // 获取全部任务
-  static Future<TaskListResponse> fetchAllTasks({
-    int page = 1,
-    int pageSize = 10,
-    String? status,
-    String? priority,
-  }) {
-    final Map<String, String> params = {
-      'page': page.toString(),
-      'pageSize': pageSize.toString(),
-    };
-    if (status != null) params['status'] = status;
-    if (priority != null) params['priority'] = priority;
-
-    return _fetchTasks('/tasks/all', params: params);
+    return _fetchTasks('/tasks/myView', params: params);
   }
 
   // 获取单个任务详情
