@@ -7,13 +7,11 @@ import '../models/role.dart';
 class SubtaskDetailView extends StatefulWidget {
   final Map<String, dynamic> subtask;
   final Role userRole;
-  final String currentUserId;
   final Function(Map<String, dynamic>) onSubtaskUpdated;
 
   SubtaskDetailView({
     required this.subtask,
     required this.userRole,
-    required this.currentUserId,
     required this.onSubtaskUpdated,
   });
 
@@ -38,7 +36,8 @@ class _SubtaskDetailViewState extends State<SubtaskDetailView> {
   @override
   Widget build(BuildContext context) {
     List<dynamic> checkIns = _currentSubtask['checkIns'] ?? [];
-    bool isOwnSubtask = _currentSubtask['assignedTo'] == widget.currentUserId;
+    // 【修改】移除 currentUserId 检查，使用其他逻辑判断
+    bool isOwnSubtask = _canManageSubtask();
     bool hasManagementPermission = widget.userRole.roleId <= 3;
 
     return Scaffold(
@@ -150,7 +149,7 @@ class _SubtaskDetailViewState extends State<SubtaskDetailView> {
                             child: Center(
                                 child: Text('地图占位符',
                                     style:
-                                        TextStyle(color: Color(0xFF666666)))),
+                                    TextStyle(color: Color(0xFF666666)))),
                           ),
                           SizedBox(height: 12),
                           Text(
@@ -168,6 +167,13 @@ class _SubtaskDetailViewState extends State<SubtaskDetailView> {
         ),
       ),
     );
+  }
+
+  // 【新增】判断是否可以管理子任务的方法
+  bool _canManageSubtask() {
+    // 这里可以根据子任务状态、用户角色等逻辑来判断
+    // 例如：只有未完成的子任务可以打卡
+    return !_currentSubtask['completed'];
   }
 
   void _showCheckInDialog() {
@@ -202,7 +208,7 @@ class _SubtaskDetailViewState extends State<SubtaskDetailView> {
                               SizedBox(width: 8),
                               Text('1. 拍照 *',
                                   style:
-                                      TextStyle(fontWeight: FontWeight.w500)),
+                                  TextStyle(fontWeight: FontWeight.w500)),
                               Spacer(),
                               if (_capturedImage != null)
                                 Icon(Icons.check_circle,
@@ -256,7 +262,7 @@ class _SubtaskDetailViewState extends State<SubtaskDetailView> {
                               SizedBox(width: 8),
                               Text('2. 获取位置 *',
                                   style:
-                                      TextStyle(fontWeight: FontWeight.w500)),
+                                  TextStyle(fontWeight: FontWeight.w500)),
                               Spacer(),
                               if (_currentPosition != null)
                                 Icon(Icons.check_circle,
@@ -276,16 +282,16 @@ class _SubtaskDetailViewState extends State<SubtaskDetailView> {
                               onPressed: () async {
                                 try {
                                   LocationPermission permission =
-                                      await Geolocator.checkPermission();
+                                  await Geolocator.checkPermission();
                                   if (permission == LocationPermission.denied) {
                                     permission =
-                                        await Geolocator.requestPermission();
+                                    await Geolocator.requestPermission();
                                   }
                                   if (permission ==
-                                          LocationPermission.whileInUse ||
+                                      LocationPermission.whileInUse ||
                                       permission == LocationPermission.always) {
                                     Position position =
-                                        await Geolocator.getCurrentPosition();
+                                    await Geolocator.getCurrentPosition();
                                     setDialogState(() {
                                       _currentPosition = position;
                                       _locationAddress = '北京市朝阳区'; // 模拟地址
@@ -331,35 +337,35 @@ class _SubtaskDetailViewState extends State<SubtaskDetailView> {
                 ),
                 ElevatedButton(
                   onPressed:
-                      (_capturedImage != null && _currentPosition != null)
-                          ? () {
-                              Navigator.pop(context);
-                              setState(() {
-                                List<dynamic> checkIns =
-                                    _currentSubtask['checkIns'] ?? [];
-                                checkIns.add({
-                                  'userId': widget.currentUserId,
-                                  'timestamp': DateTime.now(),
-                                  'photo': _capturedImage!.path,
-                                  'location': _locationAddress ??
-                                      '${_currentPosition!.latitude}, ${_currentPosition!.longitude}',
-                                  'note': _noteController.text.isNotEmpty
-                                      ? _noteController.text
-                                      : '子任务打卡'
-                                });
-                                _currentSubtask['checkIns'] = checkIns;
-                                _currentSubtask['completed'] = true;
-                                widget.onSubtaskUpdated(_currentSubtask);
-                              });
-                              _capturedImage = null;
-                              _currentPosition = null;
-                              _locationAddress = null;
-                              _noteController.clear();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('打卡成功')),
-                              );
-                            }
-                          : null,
+                  (_capturedImage != null && _currentPosition != null)
+                      ? () {
+                    Navigator.pop(context);
+                    setState(() {
+                      List<dynamic> checkIns =
+                          _currentSubtask['checkIns'] ?? [];
+                      checkIns.add({
+                        // 【修改】移除 userId 字段或使用其他标识
+                        'timestamp': DateTime.now(),
+                        'photo': _capturedImage!.path,
+                        'location': _locationAddress ??
+                            '${_currentPosition!.latitude}, ${_currentPosition!.longitude}',
+                        'note': _noteController.text.isNotEmpty
+                            ? _noteController.text
+                            : '子任务打卡'
+                      });
+                      _currentSubtask['checkIns'] = checkIns;
+                      _currentSubtask['completed'] = true;
+                      widget.onSubtaskUpdated(_currentSubtask);
+                    });
+                    _capturedImage = null;
+                    _currentPosition = null;
+                    _locationAddress = null;
+                    _noteController.clear();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('打卡成功')),
+                    );
+                  }
+                      : null,
                   child: Text('完成打卡'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Color(0xFFFF8C42),

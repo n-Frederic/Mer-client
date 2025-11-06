@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:io';
+import '../models/task_list_response.dart';
 import 'task_detail_view.dart';
 import '../models/task.dart';
 import '../services/task_service.dart';
@@ -20,7 +21,6 @@ class _CalendarViewState extends State<CalendarView>
   late TabController _tabController;
   late Future<Role> _roleFuture;
   late Role _currentUserRole;
-  String _currentUserId = '1';
   Map<String, dynamic>? _currentTask;
   String _taskFilterMode = 'my';
   String _taskSearchTerm = '';
@@ -31,14 +31,12 @@ class _CalendarViewState extends State<CalendarView>
   @override
   void initState() {
     super.initState();
-    _selectedDay =
-        DateTime(_currentDate.year, _currentDate.month, _currentDate.day);
+    _selectedDay = DateTime(_currentDate.year, _currentDate.month, _currentDate.day);
 
     // 初始化任务加载
-    _tasksFuture = _fetchTasksByMode(_taskFilterMode, _currentUserId);
+    _tasksFuture = _fetchTasksByMode(_taskFilterMode);
 
     // 初始化角色加载
-    // ⚠️ 假设当前用户的 Role ID 是 3。实际应用中应从登录响应中获取。
     _roleFuture = _fetchRoleById(3);
 
     _tabController = TabController(length: 2, vsync: this);
@@ -50,41 +48,32 @@ class _CalendarViewState extends State<CalendarView>
     super.dispose();
   }
 
-  // Task_view.dart 内，新增 _fetchRoleById 函数 (模拟 API 调用)
-
-  // ⚠️ 占位函数：实际应用中需要调用 User/Role Service
   Future<Role> _fetchRoleById(int roleId) async {
-    // TODO: 实现 RoleService.fetchRole(roleId)
-    await Future.delayed(Duration(milliseconds: 500)); // 模拟网络延迟
+    await Future.delayed(Duration(milliseconds: 500));
 
-    // 假设返回一个 Role 对象
     final fetchedRole = Role(
       roleId: roleId,
-      name: 'Team Leader', // 假设从 API 获取的名称
+      name: 'Team Leader',
       description: '负责团队管理和审批',
     );
 
-    // 加载完成后，更新状态变量
     if (mounted) {
-      _currentUserRole = fetchedRole;
+      setState(() {
+        _currentUserRole = fetchedRole;
+      });
     }
     return fetchedRole;
   }
 
-  Future<List<Task>> _fetchTasksByMode(String mode, String userId) async {
+  // 【关键修复】移除 userId 参数
+  Future<List<Task>> _fetchTasksByMode(String mode) async {
     try {
       TaskListResponse response;
 
       if (mode == 'my') {
-        // 'my' 模式 (我要做的事) -> 调用 /tasks/personal
-        response = await TaskService.fetchPersonalTasks(
-          userId: userId,
-        );
+        response = await TaskService.fetchPersonalTasks();
       } else {
-        // 'all' 模式 (我能看到的事) -> 调用 /tasks/scoped
-        response = await TaskService.fetchScopedTasks(
-          userId: userId,
-        );
+        response = await TaskService.fetchScopedTasks();
       }
       if (mounted) {
         setState(() {
@@ -193,14 +182,9 @@ class _CalendarViewState extends State<CalendarView>
             ),
             child: Row(
               children: [
-                _buildViewModeButton(
-                    'day', '日视图', Icons.today, Color(0xFFFF6B9D)),
-                _buildViewModeButton(
-                    'week', '周视图', Icons.calendar_view_week,
-                    Color(0xFFFF9F51)),
-                _buildViewModeButton(
-                    'month', '月视图', Icons.calendar_view_month,
-                    Color(0xFF4ECDC4)),
+                _buildViewModeButton('day', '日视图', Icons.today, Color(0xFFFF6B9D)),
+                _buildViewModeButton('week', '周视图', Icons.calendar_view_week, Color(0xFFFF9F51)),
+                _buildViewModeButton('month', '月视图', Icons.calendar_view_month, Color(0xFF4ECDC4)),
               ],
             ),
           ),
@@ -222,8 +206,7 @@ class _CalendarViewState extends State<CalendarView>
     );
   }
 
-  Widget _buildViewModeButton(String mode, String label, IconData icon,
-      Color color) {
+  Widget _buildViewModeButton(String mode, String label, IconData icon, Color color) {
     bool isSelected = _viewMode == mode;
     return Expanded(
       child: GestureDetector(
@@ -237,20 +220,16 @@ class _CalendarViewState extends State<CalendarView>
           margin: EdgeInsets.all(2),
           padding: EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            gradient: isSelected
-                ? LinearGradient(colors: [color, color.withOpacity(0.7)])
-                : null,
+            gradient: isSelected ? LinearGradient(colors: [color, color.withOpacity(0.7)]) : null,
             color: isSelected ? null : Colors.transparent,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: isSelected
-                ? [
+            boxShadow: isSelected ? [
               BoxShadow(
                 color: color.withOpacity(0.3),
                 blurRadius: 8,
                 offset: Offset(0, 2),
               ),
-            ]
-                : null,
+            ] : null,
           ),
           child: Center(
             child: Text(
@@ -296,8 +275,7 @@ class _CalendarViewState extends State<CalendarView>
         GestureDetector(
           onTap: () {
             setState(() {
-              _currentDate =
-                  DateTime(_currentDate.year, _currentDate.month - 1);
+              _currentDate = DateTime(_currentDate.year, _currentDate.month - 1);
             });
           },
           child: Container(
@@ -332,8 +310,7 @@ class _CalendarViewState extends State<CalendarView>
         GestureDetector(
           onTap: () {
             setState(() {
-              _currentDate =
-                  DateTime(_currentDate.year, _currentDate.month + 1);
+              _currentDate = DateTime(_currentDate.year, _currentDate.month + 1);
             });
           },
           child: Container(
@@ -353,44 +330,31 @@ class _CalendarViewState extends State<CalendarView>
   Widget _buildWeekdaysHeader() {
     return Row(
       children: ['日', '一', '二', '三', '四', '五', '六']
-          .map((day) =>
-          Expanded(
-            child: Center(
-              child: Text(
-                day,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF666666),
-                ),
-              ),
+          .map((day) => Expanded(
+        child: Center(
+          child: Text(
+            day,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF666666),
             ),
-          ))
+          ),
+        ),
+      ))
           .toList(),
     );
   }
 
   Widget _buildMonthView() {
-    if (_selectedDay.year != _currentDate.year ||
-        _selectedDay.month != _currentDate.month) {
+    if (_selectedDay.year != _currentDate.year || _selectedDay.month != _currentDate.month) {
       _selectedDay = DateTime(_currentDate.year, _currentDate.month, 1);
     }
 
-    // --- 动态计算所需行数（周数） ---
     final firstDayOfMonth = DateTime(_currentDate.year, _currentDate.month, 1);
-    // firstWeekday: 1=Mon, ..., 7=Sun. (Dart standard)
-    // firstWeekdayOffset: Calendar starts on Sun (index 0). Sun=0, Mon=1, ..., Sat=6.
-    final int firstWeekdayOffset =
-    firstDayOfMonth.weekday == 7 ? 0 : firstDayOfMonth.weekday;
-
-    // 计算本月总天数
-    final daysInMonth =
-        DateTime(_currentDate.year, _currentDate.month + 1, 0).day;
-
-    // 总共需要的单元格数量 (前面的空白 + 月份天数)
+    final int firstWeekdayOffset = firstDayOfMonth.weekday == 7 ? 0 : firstDayOfMonth.weekday;
+    final daysInMonth = DateTime(_currentDate.year, _currentDate.month + 1, 0).day;
     final totalCells = firstWeekdayOffset + daysInMonth;
-
-    // 计算所需的周数 (向上取整)
     final requiredWeeks = (totalCells / 7).ceil();
 
     return SingleChildScrollView(
@@ -430,13 +394,11 @@ class _CalendarViewState extends State<CalendarView>
               children: [
                 _buildWeekdaysHeader(),
                 SizedBox(height: 8),
-                // 使用 requiredWeeks 替换硬编码的 6
                 ...List.generate(requiredWeeks, (weekIndex) {
                   return Row(
                     children: List.generate(7, (dayIndex) {
                       final cellIndex = weekIndex * 7 + dayIndex;
-                      return Expanded(
-                          child: _buildCalendarCellFixed(cellIndex));
+                      return Expanded(child: _buildCalendarCellFixed(cellIndex));
                     }),
                   );
                 }),
@@ -444,22 +406,17 @@ class _CalendarViewState extends State<CalendarView>
             ),
           ),
           SizedBox(height: 16),
-          // 日历下方的任务卡片区域
           _buildSelectedDayTasks(),
         ],
       ),
     );
   }
 
-  // Task_view.dart 内，替换整个 _buildCalendarCellFixed 方法
-
   Widget _buildCalendarCellFixed(int index) {
     final firstDayOfMonth = DateTime(_currentDate.year, _currentDate.month, 1);
-    final firstWeekday =
-    firstDayOfMonth.weekday == 7 ? 0 : firstDayOfMonth.weekday;
+    final firstWeekday = firstDayOfMonth.weekday == 7 ? 0 : firstDayOfMonth.weekday;
     final dayNumber = index - firstWeekday + 1;
-    final daysInMonth =
-        DateTime(_currentDate.year, _currentDate.month + 1, 0).day;
+    final daysInMonth = DateTime(_currentDate.year, _currentDate.month + 1, 0).day;
 
     if (dayNumber < 1 || dayNumber > daysInMonth) {
       return Container(height: 50);
@@ -467,38 +424,35 @@ class _CalendarViewState extends State<CalendarView>
 
     final date = DateTime(_currentDate.year, _currentDate.month, dayNumber);
     final dateOnly = DateTime(date.year, date.month, date.day);
-    final todayOnly =
-    DateTime(DateTime
-        .now()
-        .year, DateTime
-        .now()
-        .month, DateTime
-        .now()
-        .day);
+    final todayOnly = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
-    // 逻辑修复：使用缓存的强类型任务列表 _cachedTasks
     final List<Task> dailyEvents = _cachedTasks.where((task) {
-      // 任务截止日必须存在
-      if (task.dueAt == null) return false;
-      // 已完成的任务不显示在日历上
+      // 跳过已完成的任务
       if (task.status == TaskStatus.completed) return false;
 
-      final eventDueDateOnly =
-      DateTime(task.dueAt!.year, task.dueAt!.month, task.dueAt!.day);
+      // 如果任务有开始时间和截止时间，检查当前日期是否在任务周期内
+      if (task.startAt != null && task.dueAt != null) {
+        final taskStartDate = DateTime(task.startAt!.year, task.startAt!.month, task.startAt!.day);
+        final taskDueDate = DateTime(task.dueAt!.year, task.dueAt!.month, task.dueAt!.day);
 
-      // 1. 检查任务截止日是否在今天或未来
-      final isEventDueTodayOrFuture =
-      eventDueDateOnly.isAfter(todayOnly.subtract(Duration(days: 1)));
-      if (!isEventDueTodayOrFuture) return false;
+        // 检查当前日期是否在 [开始日期, 截止日期] 范围内
+        return (dateOnly.isAfter(taskStartDate.subtract(Duration(days: 1))) &&
+            dateOnly.isBefore(taskDueDate.add(Duration(days: 1))));
+      }
 
-      // 2. 检查当前日历单元格日期是否在 [今天, 任务截止日] 区间内
-      final isCellDateTodayOrFuture =
-      dateOnly.isAfter(todayOnly.subtract(Duration(days: 1)));
-      final isCellDateOnOrBeforeDueDate =
-      dateOnly.isBefore(eventDueDateOnly.add(Duration(days: 1)));
+      // 如果只有截止时间，显示从今天到截止日的所有日期
+      if (task.dueAt != null) {
+        final taskDueDate = DateTime(task.dueAt!.year, task.dueAt!.month, task.dueAt!.day);
 
-      return isCellDateTodayOrFuture && isCellDateOnOrBeforeDueDate;
-    }).toList(); // <--- 这里使用了 _cachedTasks
+        // 检查当前日期是否在 [今天, 截止日期] 范围内
+        final isDateTodayOrFuture = dateOnly.isAfter(todayOnly.subtract(Duration(days: 1)));
+        final isDateOnOrBeforeDueDate = dateOnly.isBefore(taskDueDate.add(Duration(days: 1)));
+
+        return isDateTodayOrFuture && isDateOnOrBeforeDueDate;
+      }
+
+      return false;
+    }).toList();
 
     final eventCount = dailyEvents.length;
     final isToday = _isSameDate(date, DateTime.now());
@@ -514,25 +468,17 @@ class _CalendarViewState extends State<CalendarView>
         height: 48,
         margin: EdgeInsets.all(2),
         decoration: BoxDecoration(
-          gradient: isToday
-              ? LinearGradient(colors: [Color(0xFFFF8C42), Color(0xFFFF6B9D)])
-              : null,
-          color: isToday
-              ? null
-              : (eventCount > 0 ? Color(0xFFFFE66D).withOpacity(0.3) : null),
+          gradient: isToday ? LinearGradient(colors: [Color(0xFFFF8C42), Color(0xFFFF6B9D)]) : null,
+          color: isToday ? null : (eventCount > 0 ? Color(0xFFFFE66D).withOpacity(0.3) : null),
           borderRadius: BorderRadius.circular(12),
-          boxShadow: isToday
-              ? [
+          boxShadow: isToday ? [
             BoxShadow(
               color: Color(0xFFFF8C42).withOpacity(0.3),
               blurRadius: 8,
               offset: Offset(0, 2),
             ),
-          ]
-              : null,
-          border: isSelected && !isToday
-              ? Border.all(color: Color(0xFFFF8C42), width: 2)
-              : null,
+          ] : null,
+          border: isSelected && !isToday ? Border.all(color: Color(0xFFFF8C42), width: 2) : null,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -541,8 +487,7 @@ class _CalendarViewState extends State<CalendarView>
               '$dayNumber',
               style: TextStyle(
                 fontSize: 16,
-                fontWeight:
-                isToday || isSelected ? FontWeight.bold : FontWeight.normal,
+                fontWeight: isToday || isSelected ? FontWeight.bold : FontWeight.normal,
                 color: isToday ? Colors.white : Color(0xFF333333),
               ),
             ),
@@ -561,43 +506,29 @@ class _CalendarViewState extends State<CalendarView>
     );
   }
 
-  // Task_view.dart 内，替换整个 _buildSelectedDayTasks 方法
-
   Widget _buildSelectedDayTasks() {
-    // 逻辑修复：使用缓存的强类型任务列表 _cachedTasks
-    final allTasks = _cachedTasks;
-
-    // 过滤：只显示任务截止日是 _selectedDay 的任务 (使用强类型 Task 对象)
-    final selectedDayTasks = allTasks
-        .where((task) =>
-    task.dueAt != null && _isSameDate(task.dueAt!, _selectedDay))
+    final selectedDayTasks = _cachedTasks
+        .where((task) => task.dueAt != null && _isSameDate(task.dueAt!, _selectedDay))
         .toList();
 
     return Column(
-      // 移除 Container 保持简洁
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Text(
-            '${_selectedDay.month}月${_selectedDay
-                .day}日 任务 (${selectedDayTasks.length}个)',
-            style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF333333)),
+            '${_selectedDay.month}月${_selectedDay.day}日 任务 (${selectedDayTasks.length}个)',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF333333)),
           ),
         ),
         selectedDayTasks.isEmpty
             ? Center(
             child: Padding(
               padding: const EdgeInsets.only(top: 20.0),
-              child:
-              Text('当天没有任务', style: TextStyle(color: Color(0xFF999999))),
+              child: Text('当天没有任务', style: TextStyle(color: Color(0xFF999999))),
             ))
             : ListView.builder(
           shrinkWrap: true,
-          // 关键：使用 shrinkWrap 以适应 SingleChildScrollView
           physics: NeverScrollableScrollPhysics(),
           padding: EdgeInsets.zero,
           itemCount: selectedDayTasks.length,
@@ -605,23 +536,18 @@ class _CalendarViewState extends State<CalendarView>
             final task = selectedDayTasks[index];
             return GestureDetector(
               onTap: () {
-                // 直接传递强类型 Task 对象
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) =>
-                        TaskDetailView(
-                          taskId: task.taskId,
-                          userRole: _currentUserRole, // 【修改】使用新的角色标识符
-                          currentUserId: _currentUserId,
-                          onTaskUpdated: (updatedTask) {
-                            // 任务更新后，重新加载数据，刷新列表和日历
-                            setState(() {
-                              _tasksFuture = _fetchTasksByMode(
-                                  _taskFilterMode, _currentUserId);
-                            });
-                          },
-                        ),
+                    builder: (context) => TaskDetailView(
+                      taskId: task.taskId,
+                      userRole: _currentUserRole,
+                      onTaskUpdated: (updatedTask) {
+                        setState(() {
+                          _tasksFuture = _fetchTasksByMode(_taskFilterMode);
+                        });
+                      },
+                    ),
                   ),
                 );
               },
@@ -631,13 +557,10 @@ class _CalendarViewState extends State<CalendarView>
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black12, blurRadius: 4)
-                  ],
+                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
                 ),
                 child: Row(
                   children: [
-                    // ⚠️ 占位符
                     Text('📝', style: TextStyle(fontSize: 20)),
                     SizedBox(width: 12),
                     Expanded(child: Text(task.title)),
@@ -652,22 +575,41 @@ class _CalendarViewState extends State<CalendarView>
     );
   }
 
-  // (以下为其他视图和辅助方法，保持不变)
-
-  // Task_view.dart 内，替换整个 _buildDayView 方法
-
+  // 【优化】日视图 - 显示当天任务
   Widget _buildDayView() {
     final today = DateTime.now();
 
-    // 逻辑修复：使用缓存的强类型任务列表 _cachedTasks
-    final todayTasks =
-    _cachedTasks.where((task) =>
-    task.dueAt != null && _isSameDate(task.dueAt!, today)).toList();
+    // 【修改】日视图显示今天在任务周期内的所有任务
+    final todayTasks = _cachedTasks.where((task) {
+      if (task.status == TaskStatus.completed) return false;
+
+      final todayOnly = DateTime(today.year, today.month, today.day);
+
+      if (task.startAt != null && task.dueAt != null) {
+        final taskStartDate = DateTime(task.startAt!.year, task.startAt!.month, task.startAt!.day);
+        final taskDueDate = DateTime(task.dueAt!.year, task.dueAt!.month, task.dueAt!.day);
+
+        return (todayOnly.isAfter(taskStartDate.subtract(Duration(days: 1))) &&
+            todayOnly.isBefore(taskDueDate.add(Duration(days: 1))));
+      }
+
+      if (task.dueAt != null) {
+        final taskDueDate = DateTime(task.dueAt!.year, task.dueAt!.month, task.dueAt!.day);
+
+        final isDateTodayOrFuture = todayOnly.isAfter(DateTime.now().subtract(Duration(days: 1)));
+        final isDateOnOrBeforeDueDate = todayOnly.isBefore(taskDueDate.add(Duration(days: 1)));
+
+        return isDateTodayOrFuture && isDateOnOrBeforeDueDate;
+      }
+
+      return false;
+    }).toList();
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(16),
       child: Column(
         children: [
+          // 日期头
           Container(
             width: double.infinity,
             padding: EdgeInsets.all(24),
@@ -713,208 +655,40 @@ class _CalendarViewState extends State<CalendarView>
                     color: Colors.white.withOpacity(0.8),
                   ),
                 ),
+                SizedBox(height: 8),
+                Text(
+                  '今日任务: ${todayTasks.length}个',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white.withOpacity(0.9),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ],
             ),
           ),
           SizedBox(height: 24),
+
+          // 任务列表
           if (todayTasks.isEmpty)
-            Container(
-              padding: EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: Color(0xFFFFF8E1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text('🌟', style: TextStyle(fontSize: 40)),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    '今天没有任务',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF333333),
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    '享受轻松的一天吧！',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF999999),
-                    ),
-                  ),
-                ],
-              ),
-            )
+            _buildEmptyState('今天没有任务', '享受轻松的一天吧！')
           else
-            ...todayTasks.map((task) =>
-                GestureDetector(
-                  onTap: () {
-                    // 导航到任务详情页
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            TaskDetailView(
-                              taskId: task.taskId,
-                              userRole: _currentUserRole, // 【修改】使用新的角色标识符
-                              currentUserId: _currentUserId,
-                              onTaskUpdated: (updatedTask) {
-                                // 任务更新后，重新加载数据
-                                setState(() {
-                                  _tasksFuture = _fetchTasksByMode(
-                                      _taskFilterMode, _currentUserId);
-                                });
-                              },
-                            ),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    margin: EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 8,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 60,
-                                height: 60,
-                                decoration: BoxDecoration(
-                                  // ⚠️ 占位符
-                                  color: Colors.blueAccent.withOpacity(0.5),
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.blueAccent.withOpacity(0.3),
-                                      blurRadius: 8,
-                                      offset: Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Center(
-                                  // ⚠️ 占位符
-                                  child: Text(
-                                      '📝', style: TextStyle(fontSize: 28)),
-                                ),
-                              ),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      task.title,
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF333333),
-                                      ),
-                                    ),
-                                    SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        Icon(Icons.access_time,
-                                            size: 16, color: Color(0xFF666666)),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          // 使用截止日期的时间部分
-                                          task.dueAt != null ? '截止 ${task
-                                              .dueAt!.hour}:${task.dueAt!
-                                              .minute}' : '未设置时间',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: Color(0xFF666666),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              _buildStatusChip(task.status),
-                            ],
-                          ),
-                          SizedBox(height: 12),
-                          // ⚠️ 占位符
-                          LinearProgressIndicator(
-                            value: 0.0,
-                            backgroundColor: Colors.grey[300],
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              task.status == TaskStatus.completed
-                                  ? Colors.green
-                                  : Colors.blue,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            '进度: 0%',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF666666),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                )),
+            ...todayTasks.map((task) => _buildTaskCard(task)),
         ],
       ),
     );
   }
-
-  // Task_view.dart 内，替换整个 _buildWeekView 方法
-
+  // 【优化】周视图 - 显示一周任务
   Widget _buildWeekView() {
-    final startOfWeek =
-    _currentDate.subtract(Duration(days: _currentDate.weekday - 1));
-    final weekDays =
-    List.generate(7, (i) => startOfWeek.add(Duration(days: i)));
+    final startOfWeek = _currentDate.subtract(Duration(days: _currentDate.weekday - 1));
+    final weekDays = List.generate(7, (i) => startOfWeek.add(Duration(days: i)));
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(16),
       child: Column(
-        children: weekDays.map((day) {
-          // 逻辑修复：使用缓存的强类型任务列表 _cachedTasks
-          final dayTasks =
-          _cachedTasks.where((task) =>
-          task.dueAt != null && _isSameDate(task.dueAt!, day)).toList();
-          final isToday = _isSameDate(day, DateTime.now());
-
-          return Container(
-            margin: EdgeInsets.only(bottom: 16),
+        children: [
+          // 周标题
+          Container(
             padding: EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -927,159 +701,433 @@ class _CalendarViewState extends State<CalendarView>
                 ),
               ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${day.month}月${day.day}日 ${_getWeekdayName(day.weekday)}',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: isToday ? Color(0xFFFF6B9D) : Color(0xFF333333),
-                  ),
+                  '${_getMonthName(startOfWeek.month)}${startOfWeek.day}日',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
-                SizedBox(height: 8),
-                if (dayTasks.isEmpty)
-                  Container(
-                    padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    child: Row(
+                Text('至', style: TextStyle(color: Color(0xFF666666))),
+                Text(
+                  '${_getMonthName(weekDays.last.month)}${weekDays.last.day}日',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 16),
+
+          // 每日任务
+          ...weekDays.map((day) {
+            // 【修改】周视图也显示任务周期内的所有日期
+            final dayTasks = _cachedTasks.where((task) {
+              if (task.status == TaskStatus.completed) return false;
+
+              final dayOnly = DateTime(day.year, day.month, day.day);
+
+              if (task.startAt != null && task.dueAt != null) {
+                final taskStartDate = DateTime(task.startAt!.year, task.startAt!.month, task.startAt!.day);
+                final taskDueDate = DateTime(task.dueAt!.year, task.dueAt!.month, task.dueAt!.day);
+
+                return (dayOnly.isAfter(taskStartDate.subtract(Duration(days: 1))) &&
+                    dayOnly.isBefore(taskDueDate.add(Duration(days: 1))));
+              }
+
+              if (task.dueAt != null) {
+                final taskDueDate = DateTime(task.dueAt!.year, task.dueAt!.month, task.dueAt!.day);
+                final todayOnly = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+
+                final isDateTodayOrFuture = dayOnly.isAfter(todayOnly.subtract(Duration(days: 1)));
+                final isDateOnOrBeforeDueDate = dayOnly.isBefore(taskDueDate.add(Duration(days: 1)));
+
+                return isDateTodayOrFuture && isDateOnOrBeforeDueDate;
+              }
+
+              return false;
+            }).toList();
+
+            final isToday = _isSameDate(day, DateTime.now());
+            final isSelected = _isSameDate(day, _selectedDay);
+
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedDay = day;
+                  _viewMode = 'day'; // 点击切换到日视图
+                });
+              },
+              child: Container(
+                margin: EdgeInsets.only(bottom: 16),
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: isSelected ? Border.all(color: Color(0xFFFF8C42), width: 2) : null,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 8,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Container(
-                          width: 20,
-                          height: 20,
-                          decoration: BoxDecoration(
-                            color: Color(0xFFFFF8E1),
-                            shape: BoxShape.circle,
+                        Text(
+                          '${day.month}月${day.day}日 ${_getWeekdayName(day.weekday)}',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: isToday ? Color(0xFFFF6B9D) : Color(0xFF333333),
                           ),
-                          child: Center(
-                              child:
-                              Text('🌟', style: TextStyle(fontSize: 12))),
                         ),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '暂无任务',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF333333),
-                                ),
-                              ),
-                              Text(
-                                '当天无安排',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFF999999),
-                                ),
-                              ),
-                            ],
+                        SizedBox(width: 8),
+                        if (isToday)
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Color(0xFFFF6B9D),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '今天',
+                              style: TextStyle(color: Colors.white, fontSize: 12),
+                            ),
+                          ),
+                        Spacer(),
+                        Text(
+                          '${dayTasks.length}个任务',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF666666),
                           ),
                         ),
                       ],
                     ),
-                  )
-                else
-                  ...dayTasks.map((task) =>
-                      GestureDetector(
-                        onTap: () {
-                          // 导航到任务详情页
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  TaskDetailView(
-                                    taskId: task.taskId,
-                                    userRole: _currentUserRole,
-                                    currentUserId: _currentUserId,
-                                    onTaskUpdated: (updatedTask) {
-                                      // 任务更新后，重新加载数据
-                                      setState(() {
-                                        _tasksFuture = _fetchTasksByMode(
-                                            _taskFilterMode, _currentUserId);
-                                      });
-                                    },
-                                  ),
-                            ),
-                          );
-                        },
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Row(
-                            children: [
-                              // ⚠️ 占位符
-                              Text('📝', style: TextStyle(fontSize: 20)),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      task.title,
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFF333333),
-                                      ),
-                                    ),
-                                    Text(
-                                      // ⚠️ 占位符
-                                      '${task.dueAt != null
-                                          ? '截止 ${task.dueAt!.hour}:${task
-                                          .dueAt!.minute}'
-                                          : '未设置时间'} · 进度: 0%',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Color(0xFF666666),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              _buildStatusChip(task.status),
-                            ],
-                          ),
+                    SizedBox(height: 12),
+                    if (dayTasks.isEmpty)
+                      _buildEmptyDayState()
+                    else
+                      ...dayTasks.take(3).map((task) => _buildWeekTaskItem(task)),
+                    if (dayTasks.length > 3)
+                      Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          '还有${dayTasks.length - 3}个任务...',
+                          style: TextStyle(color: Color(0xFF999999), fontSize: 12),
                         ),
-                      )),
-              ],
+                      ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+  // 周视图任务项
+  Widget _buildWeekTaskItem(Task task) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TaskDetailView(
+              taskId: task.taskId,
+              userRole: _currentUserRole,
+              onTaskUpdated: (updatedTask) {
+                setState(() {
+                  _tasksFuture = _fetchTasksByMode(_taskFilterMode);
+                });
+              },
             ),
-          );
-        }).toList(),
+          ),
+        );
+      },
+      child: Container(
+        margin: EdgeInsets.only(bottom: 8),
+        padding: EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Color(0xFFF8F9FA),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: _getStatusColor(task.status),
+                shape: BoxShape.circle,
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    task.title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF333333),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    task.dueAt != null
+                        ? '${task.dueAt!.hour.toString().padLeft(2, '0')}:${task.dueAt!.minute.toString().padLeft(2, '0')}'
+                        : '未设置时间',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF666666),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _buildStatusChip(task.status),
+          ],
+        ),
       ),
     );
   }
 
+  // 日视图任务卡片
+  Widget _buildTaskCard(Task task) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TaskDetailView(
+              taskId: task.taskId,
+              userRole: _currentUserRole,
+              onTaskUpdated: (updatedTask) {
+                setState(() {
+                  _tasksFuture = _fetchTasksByMode(_taskFilterMode);
+                });
+              },
+            ),
+          ),
+        );
+      },
+      child: Container(
+        margin: EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 8,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(task.status).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Center(
+                      child: Icon(
+                        _getTaskIcon(task.status),
+                        color: _getStatusColor(task.status),
+                        size: 28,
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          task.title,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF333333),
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.access_time, size: 16, color: Color(0xFF666666)),
+                            SizedBox(width: 4),
+                            Text(
+                              task.dueAt != null
+                                  ? '截止 ${task.dueAt!.hour.toString().padLeft(2, '0')}:${task.dueAt!.minute.toString().padLeft(2, '0')}'
+                                  : '未设置时间',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF666666),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  _buildStatusChip(task.status),
+                ],
+              ),
+              SizedBox(height: 12),
+              if (task.description.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    task.description,
+                    style: TextStyle(color: Color(0xFF666666), fontSize: 14),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              LinearProgressIndicator(
+                value: _getTaskProgress(task.status),
+                backgroundColor: Colors.grey[300],
+                valueColor: AlwaysStoppedAnimation<Color>(_getStatusColor(task.status)),
+              ),
+              SizedBox(height: 4),
+              Text(
+                '进度: ${(_getTaskProgress(task.status) * 100).toInt()}%',
+                style: TextStyle(fontSize: 12, color: Color(0xFF666666)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 空状态组件
+  Widget _buildEmptyState(String title, String subtitle) {
+    return Container(
+      padding: EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Color(0xFFFFF8E1),
+              shape: BoxShape.circle,
+            ),
+            child: Center(child: Text('🌟', style: TextStyle(fontSize: 40))),
+          ),
+          SizedBox(height: 16),
+          Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF333333))),
+          SizedBox(height: 8),
+          Text(subtitle, style: TextStyle(fontSize: 14, color: Color(0xFF999999))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyDayState() {
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              color: Color(0xFFFFF8E1),
+              shape: BoxShape.circle,
+            ),
+            child: Center(child: Text('🌟', style: TextStyle(fontSize: 12))),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('暂无任务', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF333333))),
+                Text('当天无安排', style: TextStyle(fontSize: 12, color: Color(0xFF999999))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 辅助方法
+  Color _getStatusColor(TaskStatus status) {
+    switch (status) {
+      case TaskStatus.published: return Color(0xFF999999);
+      case TaskStatus.assigned: return Color(0xFFFF8C42);
+      case TaskStatus.inProgress: return Colors.blue;
+      case TaskStatus.reported: return Colors.purple;
+      case TaskStatus.completed: return Colors.green;
+      case TaskStatus.closed: return Colors.black45;
+    }
+  }
+
+  IconData _getTaskIcon(TaskStatus status) {
+    switch (status) {
+      case TaskStatus.published: return Icons.publish;
+      case TaskStatus.assigned: return Icons.assignment_turned_in;
+      case TaskStatus.inProgress: return Icons.play_arrow;
+      case TaskStatus.reported: return Icons.report;
+      case TaskStatus.completed: return Icons.check_circle;
+      case TaskStatus.closed: return Icons.lock;
+    }
+  }
+
+  double _getTaskProgress(TaskStatus status) {
+    switch (status) {
+      case TaskStatus.published: return 0.1;
+      case TaskStatus.assigned: return 0.3;
+      case TaskStatus.inProgress: return 0.6;
+      case TaskStatus.reported: return 0.8;
+      case TaskStatus.completed: return 1.0;
+      case TaskStatus.closed: return 1.0;
+    }
+  }
+
   Widget _buildStatusChip(TaskStatus status) {
-    Color color;
+    Color color = _getStatusColor(status);
     String text;
 
     switch (status) {
-      case TaskStatus.published:
-        color = Color(0xFF999999);
-        text = '已发布';
-        break;
-      case TaskStatus.assigned:
-        color = Color(0xFFFF8C42);
-        text = '已分配';
-        break;
-      case TaskStatus.inProgress:
-        color = Colors.blue;
-        text = '进行中';
-        break;
-      case TaskStatus.reported:
-        color = Colors.purple;
-        text = '已汇报';
-        break;
-      case TaskStatus.completed:
-        color = Colors.green;
-        text = '已完成';
-        break;
-      case TaskStatus.closed:
-        color = Colors.black45;
-        text = '已关闭';
-        break;
+      case TaskStatus.published: text = '已发布'; break;
+      case TaskStatus.assigned: text = '已分配'; break;
+      case TaskStatus.inProgress: text = '进行中'; break;
+      case TaskStatus.reported: text = '已汇报'; break;
+      case TaskStatus.completed: text = '已完成'; break;
+      case TaskStatus.closed: text = '已关闭'; break;
     }
 
     return Container(
@@ -1091,41 +1139,18 @@ class _CalendarViewState extends State<CalendarView>
       ),
       child: Text(
         text,
-        style:
-        TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500),
+        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500),
       ),
     );
   }
 
   String _getMonthName(int month) {
-    const months = [
-      '',
-      '一月',
-      '二月',
-      '三月',
-      '四月',
-      '五月',
-      '六月',
-      '七月',
-      '八月',
-      '九月',
-      '十月',
-      '十一月',
-      '十二月'
-    ];
+    const months = ['', '一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
     return months[month];
   }
 
   String _getWeekdayName(int weekday) {
-    const weekdays = [
-      '星期日',
-      '星期一',
-      '星期二',
-      '星期三',
-      '星期四',
-      '星期五',
-      '星期六'
-    ];
+    const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
     return weekdays[weekday % 7];
   }
 
@@ -1135,8 +1160,7 @@ class _CalendarViewState extends State<CalendarView>
       onTap: () {
         setState(() {
           _taskFilterMode = mode;
-          // 【关键修改】模式切换时，必须重新调用 API
-          _tasksFuture = _fetchTasksByMode(_taskFilterMode, _currentUserId);
+          _tasksFuture = _fetchTasksByMode(_taskFilterMode);
         });
       },
       child: Container(
@@ -1144,15 +1168,13 @@ class _CalendarViewState extends State<CalendarView>
         decoration: BoxDecoration(
           color: isSelected ? Color(0xFFFF8C42) : Colors.white,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: isSelected
-              ? [
+          boxShadow: isSelected ? [
             BoxShadow(
               color: Color(0xFFFF8C42).withOpacity(0.3),
               blurRadius: 8,
               offset: Offset(0, 4),
             ),
-          ]
-              : null,
+          ] : null,
         ),
         child: Text(
           label,
@@ -1182,14 +1204,10 @@ class _CalendarViewState extends State<CalendarView>
                   decoration: InputDecoration(
                     hintText: '搜索任务...',
                     prefixIcon: Icon(Icons.search, color: Color(0xFF999999)),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide.none,
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
                     filled: true,
                     fillColor: Colors.white,
-                    contentPadding:
-                    EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                   onChanged: (value) {
                     setState(() {
@@ -1202,28 +1220,21 @@ class _CalendarViewState extends State<CalendarView>
           ),
         ),
         Expanded(
-          // 使用 FutureBuilder 接入 API 数据，监听任务 Future
           child: FutureBuilder<List<Task>>(
             future: _tasksFuture,
             builder: (context, snapshot) {
-              // --- 状态处理：加载中 ---
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return Center(child: CircularProgressIndicator());
               }
 
-              // --- 状态处理：错误 ---
               if (snapshot.hasError) {
-                return Center(
-                    child: Text('加载任务失败: ${snapshot.error}',
-                        style: TextStyle(color: Colors.red)));
+                return Center(child: Text('加载任务失败: ${snapshot.error}', style: TextStyle(color: Colors.red)));
               }
 
-              // --- 数据渲染 ---
               if (snapshot.hasData) {
                 List<Task> allTasks = snapshot.data!;
-                List<Task> tasksToRender = allTasks; // 默认为 API 返回的全部
+                List<Task> tasksToRender = allTasks;
 
-                // 应用搜索过滤
                 if (_taskSearchTerm.isNotEmpty) {
                   final searchTerm = _taskSearchTerm.toLowerCase();
                   tasksToRender = tasksToRender.where((task) {
@@ -1232,58 +1243,41 @@ class _CalendarViewState extends State<CalendarView>
                   }).toList();
                 }
 
-                // 3. 排序 (例如按截止日期)
-                tasksToRender.sort((a, b) =>
-                a.dueAt?.compareTo(b.dueAt ?? DateTime(9999)) ?? -1);
+                tasksToRender.sort((a, b) => a.dueAt?.compareTo(b.dueAt ?? DateTime(9999)) ?? -1);
 
-                // 任务列表为空
                 if (tasksToRender.isEmpty) {
-                  return Center(
-                      child: Text('暂无任务',
-                          style: TextStyle(color: Color(0xFF666666))));
+                  return Center(child: Text('暂无任务', style: TextStyle(color: Color(0xFF666666))));
                 }
 
-                // 渲染列表
                 return ListView.builder(
                   padding: EdgeInsets.zero,
-                  itemCount: tasksToRender.length, // 使用筛选后的列表
+                  itemCount: tasksToRender.length,
                   itemBuilder: (context, index) {
-                    final task = tasksToRender[index]; // 使用筛选后的列表
+                    final task = tasksToRender[index];
                     return GestureDetector(
                       onTap: () {
-                        // 🚀 最终状态：直接传递强类型 Task 对象
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
-                                TaskDetailView(
-                                  taskId: task.taskId,
-                                  userRole: _currentUserRole,
-                                  currentUserId: _currentUserId,
-                                  onTaskUpdated: (updatedTask) {
-                                    // 重新刷新列表
-                                    setState(() {
-                                      _tasksFuture = _fetchTasksByMode(
-                                          _taskFilterMode, _currentUserId);
-                                    });
-                                  },
-                                ),
+                            builder: (context) => TaskDetailView(
+                              taskId: task.taskId,
+                              userRole: _currentUserRole,
+                              onTaskUpdated: (updatedTask) {
+                                setState(() {
+                                  _tasksFuture = _fetchTasksByMode(_taskFilterMode);
+                                });
+                              },
+                            ),
                           ),
                         );
                       },
                       child: Container(
-                        margin:
-                        EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         padding: EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                                color: Colors.black12,
-                                blurRadius: 8,
-                                offset: Offset(0, 4)),
-                          ],
+                          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))],
                         ),
                         child: Row(
                           children: [
@@ -1291,36 +1285,24 @@ class _CalendarViewState extends State<CalendarView>
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: Colors.blueAccent.withOpacity(0.5), // 占位符颜色
+                                color: _getStatusColor(task.status).withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Center(
-                                  child: Text('📝',
-                                      style: TextStyle(fontSize: 20))), // 占位符 Emoji
+                              child: Center(child: Icon(_getTaskIcon(task.status), color: _getStatusColor(task.status), size: 20)),
                             ),
                             SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  Text(task.title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                   Text(
-                                    task.title,
-                                    style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                  Text(
-                                    // 格式化日期，如果 dueAt 为空则显示 '未设置截止日期'
-                                    task.dueAt != null
-                                        ? '截止: ${task.dueAt!.month}月${task.dueAt!.day}日'
-                                        : '截止: 未设置',
-                                    style: TextStyle(
-                                        fontSize: 12, color: Color(0xFF666666)),
+                                    task.dueAt != null ? '截止: ${task.dueAt!.month}月${task.dueAt!.day}日' : '截止: 未设置',
+                                    style: TextStyle(fontSize: 12, color: Color(0xFF666666)),
                                   ),
                                 ],
                               ),
                             ),
-                            // 任务状态芯片
                             _buildStatusChip(task.status),
                           ],
                         ),
@@ -1329,13 +1311,14 @@ class _CalendarViewState extends State<CalendarView>
                   },
                 );
               }
-              return Container(); // 默认返回空容器
+              return Container();
             },
           ),
         ),
       ],
     );
   }
+
 
   Future<void> _handleCheckIn() async {
     // ⚠️ 注意：此函数在 Task_view.dart 中，因此它只能触发刷新，无法直接获取正在打卡的 Task 对象。
@@ -1519,7 +1502,7 @@ class _CalendarViewState extends State<CalendarView>
             // ❌ 原有：_currentTask 和 _events 的本地修改逻辑已移除
             // ✅ 新增：触发任务列表刷新，模拟 API 数据更新
             setState(() {
-            _tasksFuture = _fetchTasksByMode(_taskFilterMode, _currentUserId);
+            _tasksFuture = _fetchTasksByMode(_taskFilterMode);
             });
 
             // TODO: 未来，这里应该调用 TaskService.createCheckIn(...) API

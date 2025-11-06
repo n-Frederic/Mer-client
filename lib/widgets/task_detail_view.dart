@@ -11,13 +11,11 @@ import '../services/task_service.dart';
 class TaskDetailView extends StatefulWidget {
   final String taskId;
   final Role userRole;
-  final String currentUserId;
   final Function(Task) onTaskUpdated;
 
   TaskDetailView({
     required this.taskId,
     required this.userRole,
-    required this.currentUserId,
     required this.onTaskUpdated,
   });
 
@@ -47,15 +45,12 @@ class _TaskDetailViewState extends State<TaskDetailView> {
         ),
       ),
       body: FutureBuilder<Task>(
-        future: _taskFuture, // 监听这个 Future
+        future: _taskFuture,
         builder: (context, snapshot) {
-
-          // --- 状态 1: 加载中 ---
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
           }
 
-          // --- 状态 2: 加载失败 ---
           if (snapshot.hasError) {
             return Center(
               child: Padding(
@@ -66,10 +61,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
             );
           }
 
-          // --- 状态 3: 加载成功 ---
           if (snapshot.hasData) {
-
-            // 【修正】使用清晰的局部变量名 loadedTask
             final Task loadedTask = snapshot.data!;
 
             // 在 build 方法内部定义占位符
@@ -77,7 +69,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               'emoji': '📝',
               'progress': 0.0,
               'log': '暂无日志',
-              'assignedTo': loadedTask.creator?.userId??'未知', // 使用 loadedTask
+              'assignedTo': loadedTask.creator?.userId??'未知',
               'subtasks': [],
               'checkIns': [],
               'collaborators': ['N/A'],
@@ -88,20 +80,21 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildTaskInfo(loadedTask, _dynamicProperties), // 传递 loadedTask
+                  _buildTaskInfo(loadedTask, _dynamicProperties),
                   SizedBox(height: 20),
                   _buildTaskDetailsList(loadedTask),
                   SizedBox(height: 20),
-                  _buildSubtasks(loadedTask, _dynamicProperties), // 传递 loadedTask
+                  _buildSubtasks(loadedTask, _dynamicProperties),
                   SizedBox(height: 20),
                   _buildCollaborators(_dynamicProperties),
                   SizedBox(height: 20),
-                  _buildTaskLog(loadedTask, _dynamicProperties), // 传递 loadedTask
+                  _buildTaskLog(loadedTask, _dynamicProperties),
                   SizedBox(height: 20),
-                  if (_dynamicProperties['assignedTo'] == widget.currentUserId)
+                  // 【修改】移除 currentUserId 检查，使用其他方式判断是否可以写日志
+                  if (_canWriteLog(loadedTask))
                     Center(
                       child: ElevatedButton(
-                        onPressed: () => _handleCheckIn(loadedTask), // 传递 loadedTask
+                        onPressed: () => _handleCheckIn(loadedTask),
                         child: Text('写日志'),
                       ),
                     ),
@@ -110,11 +103,18 @@ class _TaskDetailViewState extends State<TaskDetailView> {
             );
           }
 
-          // 默认情况
           return Center(child: Text('未知状态'));
         },
       ),
     );
+  }
+
+  // 【新增】判断是否可以写日志的方法
+  bool _canWriteLog(Task task) {
+    // 这里可以根据任务状态、用户角色等逻辑来判断
+    // 例如：只有进行中、已分配状态的任务可以写日志
+    return task.status == TaskStatus.inProgress ||
+        task.status == TaskStatus.assigned;
   }
 
   Widget _buildTaskInfo(Task loadedTask, Map<String, dynamic> dynamicProperties) {
@@ -146,7 +146,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    loadedTask.title, // 使用 loadedTask
+                    loadedTask.title,
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -158,7 +158,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
             ),
             SizedBox(height: 12),
             Text(
-              loadedTask.description, // 使用 loadedTask
+              loadedTask.description,
               style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.9), height: 1.5),
             ),
             SizedBox(height: 12),
@@ -168,10 +168,10 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               children: [
                 Chip(
                   label: Text(
-                    _getStatusText(loadedTask.status), // 使用 loadedTask
+                    _getStatusText(loadedTask.status),
                     style: TextStyle(color: Colors.white, fontSize: 12),
                   ),
-                  backgroundColor: _getStatusColor(loadedTask.status), // 使用 loadedTask
+                  backgroundColor: _getStatusColor(loadedTask.status),
                 ),
               ],
             ),
@@ -195,7 +195,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
   Widget _buildTaskLog(Task loadedTask, Map<String, dynamic> dynamicProperties) {
     final String logContent = dynamicProperties['log'] ?? '暂无日志';
     final Map<String, dynamic> logData = {
-      'title': '任务日志: ${loadedTask.title}', // 使用 loadedTask
+      'title': '任务日志: ${loadedTask.title}',
       'author': '日志人',
       'authorAvatar': '📄',
       'date': DateTime.now(),
@@ -280,13 +280,11 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                       builder: (context) => SubtaskDetailView(
                         subtask: subtask,
                         userRole: widget.userRole,
-                        currentUserId: widget.currentUserId,
+                        // 【修改】移除 currentUserId 参数
                         onSubtaskUpdated: (updatedSubtask) {
-                          // TODO: 真正的子任务更新需要调用 API
-                          // 并刷新 _taskFuture
                           setState(() {
                             _taskFuture = TaskService.fetchTaskById(widget.taskId);
-                            widget.onTaskUpdated(loadedTask); // 通知列表页也刷新
+                            widget.onTaskUpdated(loadedTask);
                           });
                         },
                       ),
@@ -360,7 +358,6 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     );
   }
 
-  // 状态帮助函数：使用强类型 TaskStatus，与 Task_view.dart 保持一致
   String _getStatusText(TaskStatus status) {
     switch (status) {
       case TaskStatus.published:
@@ -412,7 +409,6 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // --- 【恢复】拍照 UI ---
                     Container(
                       padding: EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -453,7 +449,6 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                       ),
                     ),
                     SizedBox(height: 12),
-                    // --- 【恢复】定位 UI ---
                     Container(
                       padding: EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -491,7 +486,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                                     Position position = await Geolocator.getCurrentPosition();
                                     setDialogState(() {
                                       currentPosition = position;
-                                      locationAddress = '北京市朝阳区'; // 模拟地址
+                                      locationAddress = '北京市朝阳区';
                                     });
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -511,7 +506,6 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                       ),
                     ),
                     SizedBox(height: 16),
-                    // --- 【恢复】备注 UI ---
                     TextField(
                       controller: noteController,
                       decoration: InputDecoration(
@@ -534,12 +528,8 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                     Navigator.pop(context);
 
                     // TODO: 在这里调用 API (例如 TaskService.createCheckIn(...))
-                    // ...
-
-                    // API 调用成功后，刷新 Future 以获取最新数据
                     setState(() {
                       _taskFuture = TaskService.fetchTaskById(widget.taskId);
-                      // 同时通知列表页也刷新
                       widget.onTaskUpdated(loadedTask);
                     });
 
@@ -557,16 +547,14 @@ class _TaskDetailViewState extends State<TaskDetailView> {
       },
     );
   }
-  // 【新增】辅助函数：格式化日期
+
   String _formatTaskDate(DateTime? date) {
     if (date == null) {
       return '未设置';
     }
-    // 格式: 2025-10-28 18:30
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
-  // 【新增】辅助函数：用于创建列表中的每一行
   Widget _buildDetailRow({
     required IconData icon,
     required String title,
@@ -585,7 +573,6 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     );
   }
 
-  // 【新增】新的 UI 卡片：用于显示详细信息
   Widget _buildTaskDetailsList(Task loadedTask) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -598,7 +585,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
         Card(
           elevation: 4,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          color: Colors.white, // 匹配其他卡片
+          color: Colors.white,
           child: Container(
             padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
             child: Column(
@@ -607,35 +594,35 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                   icon: Icons.person_outline,
                   title: '创建者',
                   value: loadedTask.creator?.name??'未知',
-                  iconColor: Color(0xFF4ECDC4), //  teal
+                  iconColor: Color(0xFF4ECDC4),
                 ),
                 Divider(height: 1),
                 _buildDetailRow(
                   icon: Icons.flag_outlined,
                   title: '优先级',
                   value: loadedTask.priority.sqlValue,
-                  iconColor: Color(0xFFFF6B9D), // pink
+                  iconColor: Color(0xFFFF6B9D),
                 ),
                 Divider(height: 1),
                 _buildDetailRow(
                   icon: Icons.play_arrow_outlined,
                   title: '开始时间',
                   value: _formatTaskDate(loadedTask.startAt),
-                  iconColor: Color(0xFF88D8B0), // green
+                  iconColor: Color(0xFF88D8B0),
                 ),
                 Divider(height: 1),
                 _buildDetailRow(
                   icon: Icons.timer_outlined,
                   title: '截止时间',
-                  value: _formatTaskDate(loadedTask.dueAt), // <-- 使用新数据
-                  iconColor: Color(0xFFFF8C42), // orange
+                  value: _formatTaskDate(loadedTask.dueAt),
+                  iconColor: Color(0xFFFF8C42),
                 ),
                 Divider(height: 1),
                 _buildDetailRow(
                   icon: Icons.add_circle_outline,
                   title: '创建时间',
-                  value: _formatTaskDate(loadedTask.createdAt), // <-- 使用新数据
-                  iconColor: Color(0xFF999999), // grey
+                  value: _formatTaskDate(loadedTask.createdAt),
+                  iconColor: Color(0xFF999999),
                 ),
               ],
             ),

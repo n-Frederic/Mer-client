@@ -31,6 +31,82 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
     },
   ];
 
+  // 📩 弹出邮箱对话框
+  void _showEmailDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('联系我们'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.mail_outline, color: Colors.orange, size: 40),
+            SizedBox(height: 10),
+            Text(
+              '有事没事都可以联系：',
+              style: TextStyle(fontSize: 14, color: Colors.black87),
+            ),
+            SizedBox(height: 8),
+            SelectableText(
+              '2625791372@qq.com',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.blueAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ☎ 弹出在线客服对话框
+  void _showCustomerServiceDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('在线客服'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              'assets/images/customer_service.png', // 这里放你的客服图片路径
+              height: 120,
+              fit: BoxFit.contain,
+            ),
+            SizedBox(height: 10),
+            Text(
+              '客服电话：-----------',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            SizedBox(height: 6),
+            Text(
+              '服务时间：随时都可以',
+              style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -109,7 +185,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         ElevatedButton.icon(
-                          onPressed: () {},
+                          onPressed: _showEmailDialog,
                           icon: Icon(Icons.mail),
                           label: Text('邮件'),
                           style: ElevatedButton.styleFrom(
@@ -117,7 +193,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                           ),
                         ),
                         ElevatedButton.icon(
-                          onPressed: () {},
+                          onPressed: _showCustomerServiceDialog,
                           icon: Icon(Icons.chat),
                           label: Text('在线客服'),
                           style: ElevatedButton.styleFrom(
@@ -174,11 +250,8 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                         ),
                       ),
                     ),
-                    SizedBox(width: 8),
                     Icon(
-                      isExpanded
-                          ? Icons.expand_less
-                          : Icons.expand_more,
+                      isExpanded ? Icons.expand_less : Icons.expand_more,
                       color: Color(0xFFFF8C42),
                     ),
                   ],
