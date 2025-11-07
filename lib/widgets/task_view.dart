@@ -65,7 +65,6 @@ class _CalendarViewState extends State<CalendarView>
     return fetchedRole;
   }
 
-  // 【关键修复】移除 userId 参数
   Future<List<Task>> _fetchTasksByMode(String mode) async {
     try {
       TaskListResponse response;
@@ -424,8 +423,8 @@ class _CalendarViewState extends State<CalendarView>
 
     final date = DateTime(_currentDate.year, _currentDate.month, dayNumber);
     final dateOnly = DateTime(date.year, date.month, date.day);
-    final todayOnly = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
+    // 【修改】显示任务周期内的所有日期
     final List<Task> dailyEvents = _cachedTasks.where((task) {
       // 跳过已完成的任务
       if (task.status == TaskStatus.completed) return false;
@@ -435,7 +434,7 @@ class _CalendarViewState extends State<CalendarView>
         final taskStartDate = DateTime(task.startAt!.year, task.startAt!.month, task.startAt!.day);
         final taskDueDate = DateTime(task.dueAt!.year, task.dueAt!.month, task.dueAt!.day);
 
-        // 检查当前日期是否在 [开始日期, 截止日期] 范围内
+        // 检查当前日期是否在 [开始日期, 截止日期] 范围内（包含开始和结束日期）
         return (dateOnly.isAfter(taskStartDate.subtract(Duration(days: 1))) &&
             dateOnly.isBefore(taskDueDate.add(Duration(days: 1))));
       }
@@ -443,12 +442,21 @@ class _CalendarViewState extends State<CalendarView>
       // 如果只有截止时间，显示从今天到截止日的所有日期
       if (task.dueAt != null) {
         final taskDueDate = DateTime(task.dueAt!.year, task.dueAt!.month, task.dueAt!.day);
+        final todayOnly = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
         // 检查当前日期是否在 [今天, 截止日期] 范围内
         final isDateTodayOrFuture = dateOnly.isAfter(todayOnly.subtract(Duration(days: 1)));
         final isDateOnOrBeforeDueDate = dateOnly.isBefore(taskDueDate.add(Duration(days: 1)));
 
         return isDateTodayOrFuture && isDateOnOrBeforeDueDate;
+      }
+
+      // 如果只有开始时间，显示从开始日期到未来的所有日期
+      if (task.startAt != null) {
+        final taskStartDate = DateTime(task.startAt!.year, task.startAt!.month, task.startAt!.day);
+
+        // 检查当前日期是否在 [开始日期, 未来] 范围内
+        return dateOnly.isAfter(taskStartDate.subtract(Duration(days: 1)));
       }
 
       return false;
@@ -507,9 +515,37 @@ class _CalendarViewState extends State<CalendarView>
   }
 
   Widget _buildSelectedDayTasks() {
-    final selectedDayTasks = _cachedTasks
-        .where((task) => task.dueAt != null && _isSameDate(task.dueAt!, _selectedDay))
-        .toList();
+
+    final selectedDayTasks = _cachedTasks.where((task) {
+      if (task.status == TaskStatus.completed) return false;
+
+      final selectedDayOnly = DateTime(_selectedDay.year, _selectedDay.month, _selectedDay.day);
+
+      if (task.startAt != null && task.dueAt != null) {
+        final taskStartDate = DateTime(task.startAt!.year, task.startAt!.month, task.startAt!.day);
+        final taskDueDate = DateTime(task.dueAt!.year, task.dueAt!.month, task.dueAt!.day);
+
+        return (selectedDayOnly.isAfter(taskStartDate.subtract(Duration(days: 1))) &&
+            selectedDayOnly.isBefore(taskDueDate.add(Duration(days: 1))));
+      }
+
+      if (task.dueAt != null) {
+        final taskDueDate = DateTime(task.dueAt!.year, task.dueAt!.month, task.dueAt!.day);
+        final todayOnly = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+
+        final isDateTodayOrFuture = selectedDayOnly.isAfter(todayOnly.subtract(Duration(days: 1)));
+        final isDateOnOrBeforeDueDate = selectedDayOnly.isBefore(taskDueDate.add(Duration(days: 1)));
+
+        return isDateTodayOrFuture && isDateOnOrBeforeDueDate;
+      }
+
+      if (task.startAt != null) {
+        final taskStartDate = DateTime(task.startAt!.year, task.startAt!.month, task.startAt!.day);
+        return selectedDayOnly.isAfter(taskStartDate.subtract(Duration(days: 1)));
+      }
+
+      return false;
+    }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -575,7 +611,7 @@ class _CalendarViewState extends State<CalendarView>
     );
   }
 
-  // 【优化】日视图 - 显示当天任务
+  // 日视图 - 显示当天任务
   Widget _buildDayView() {
     final today = DateTime.now();
 
@@ -678,7 +714,7 @@ class _CalendarViewState extends State<CalendarView>
       ),
     );
   }
-  // 【优化】周视图 - 显示一周任务
+  // 周视图 - 显示一周任务
   Widget _buildWeekView() {
     final startOfWeek = _currentDate.subtract(Duration(days: _currentDate.weekday - 1));
     final weekDays = List.generate(7, (i) => startOfWeek.add(Duration(days: i)));

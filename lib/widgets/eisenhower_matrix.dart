@@ -51,12 +51,14 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
         _service.getCompanyImportantTasks(),
         _service.getCompanyAssignedTasks(priority: '高'),
         _loadPersonalTasksWithFallback(),
+        _service.getPersonalLogs(),
       ]);
 
       _updateData(
         companyImportantTasks: results[0],
         companyAssignedTasks: results[1],
         personalImportantTasks: results[2],
+        personalLogs: results[3],
         isLoading: false,
       );
 
@@ -109,6 +111,7 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
     List<String>? companyImportantTasks,
     List<String>? companyAssignedTasks,
     List<String>? personalImportantTasks,
+    List<String>? personalLogs,
     bool? isLoading,
   }) {
     setState(() {
@@ -116,6 +119,7 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
         companyImportantTasks: companyImportantTasks,
         companyAssignedTasks: companyAssignedTasks,
         personalImportantTasks: personalImportantTasks,
+        personalLogs: personalLogs,
         isLoading: isLoading,
       );
     });
