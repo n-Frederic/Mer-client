@@ -1,68 +1,85 @@
+// lib/models/log.dart
+import 'dart:convert';
+
 class Log {
-  // 核心 ID
-  final String logId;     // 对应 log_id (bigint, NO Null)
-  final String userId;    // 对应 user_id (bigint, NO Null)
-  final String? taskId;   // 对应 task_id (bigint, YES Null)
+  final String logId;
+  final String userId;
+  final List<String> taskIds;
+  final DateTime logDate;
 
-  // 核心内容
-  final String title;     // 对应 title (varchar, NO Null)
-  final String? content;  // 对应 content (text, YES Null)
-  final String? summary;  // 对应 summary (varchar, YES Null)
+  final String? todaySummary;
+  final String? tomorrowPlan;
+  final String? helpNeeded;
+  final String? status;
 
-  // 属性
-  final DateTime logDate; // 对应 log_date (date, NO Null)
-  final String viewType;  // 对应 view_type (enum, NO Null)
-  final String? mood;     // 对应 mood (varchar, YES Null)
+  final List<String> tags; // <-- 【修正】重新添加 tags 字段
 
-  // 时间戳
-  final DateTime createdAt; // 对应 created_at (datetime, NO Null)
-  final DateTime updatedAt; // 对应 updated_at (datetime, NO Null)
-
-  // (我们忽略了那个重复的 'date' (varchar) 字段，因为它似乎是 'log_date' 的错误副本)
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   Log({
     required this.logId,
     required this.userId,
-    this.taskId,
-    required this.title,
-    this.content,
-    this.summary,
+    this.taskIds = const [],
     required this.logDate,
-    required this.viewType,
-    this.mood,
+    this.todaySummary,
+    this.tomorrowPlan,
+    this.helpNeeded,
+    this.status,
+    this.tags = const [], // <-- 【修正】
     required this.createdAt,
     required this.updatedAt,
   });
 
-  // 辅助函数，用于安全解析日期
-  static DateTime _parseDateTime(String? dateStr) {
-    // 假设非空日期总是有效的
-    return DateTime.parse(dateStr!);
+  // 【修正】支持多种日期格式：String、int（时间戳）、null
+  static DateTime _parseDateTime(dynamic dateValue) {
+    if (dateValue == null) {
+      return DateTime.now(); // 如果为 null，返回当前时间
+    }
+    if (dateValue is int) {
+      // 如果是时间戳（秒），转换为毫秒
+      return DateTime.fromMillisecondsSinceEpoch(
+        dateValue > 1000000000000 ? dateValue : dateValue * 1000,
+      );
+    }
+    if (dateValue is String) {
+      return DateTime.parse(dateValue);
+    }
+    // 如果都不匹配，返回当前时间
+    return DateTime.now();
   }
 
-  static DateTime? _parseNullableDateTime(String? dateStr) {
-    return dateStr != null ? DateTime.parse(dateStr) : null;
+  static List<String> _parseTaskIds(dynamic jsonField) {
+    if (jsonField == null) return [];
+    if (jsonField is List) {
+      return jsonField.map((e) => e.toString()).toList();
+    }
+    if (jsonField is String) {
+      try {
+        final List<dynamic> list = json.decode(jsonField);
+        return list.map((e) => e.toString()).toList();
+      } catch (e) { return []; }
+    }
+    return [];
   }
 
-  // 工厂构造函数，用于从 API (JSON) 创建 Log 对象
-  // 假设 JSON 键与数据库字段名 (snake_case) 一致
   factory Log.fromJson(Map<String, dynamic> json) {
     return Log(
-      logId: json['log_id'].toString(),
-      userId: json['user_id'].toString(),
-      taskId: json['task_id']?.toString(),
-
-      title: json['title'] as String,
-      content: json['content'] as String?,
-      summary: json['summary'] as String?,
-
-      // 'log_date' 是 Date 类型 (YYYY-MM-DD)， 'created_at' 是 Datetime
-      logDate: _parseDateTime(json['log_date']),
-      viewType: json['view_type'] as String,
-      mood: json['mood'] as String?,
-
-      createdAt: _parseDateTime(json['created_at']),
-      updatedAt: _parseDateTime(json['updated_at']),
+      // 【修正】确保所有 ID 字段都转换为 String
+      logId: (json['log_id'] ?? json['logId'] ?? '').toString(),
+      userId: (json['user_id'] ?? json['userId'] ?? '').toString(),
+      taskIds: _parseTaskIds(json['task_id'] ?? json['taskId']),
+      logDate: _parseDateTime(json['log_date'] ?? json['logDate']),
+      createdAt: _parseDateTime(json['created_at'] ?? json['createdAt']),
+      updatedAt: _parseDateTime(json['updated_at'] ?? json['updatedAt']),
+      // 【修正】安全地转换字符串字段
+      todaySummary: json['todaySummary']?.toString(),
+      tomorrowPlan: json['tomorrowPlan']?.toString(),
+      helpNeeded: json['helpNeeded']?.toString(),
+      status: json['status']?.toString(),
+      tags: (json['tags'] as List<dynamic>?)
+          ?.map((t) => t.toString())
+          .toList() ?? [],
     );
   }
 }

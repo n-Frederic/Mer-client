@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../models/task.dart';
+import '../services/task_service.dart';
+import '../services/log_service.dart';
 
 class CreateLogScreen extends StatefulWidget {
   const CreateLogScreen({Key? key}) : super(key: key);
@@ -11,18 +14,11 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
   final _todaySummaryController = TextEditingController();
   final _tomorrowPlanController = TextEditingController();
   final _helpNeededController = TextEditingController();
+  bool _isSubmitting = false;
 
-  List<String> _selectedTasks = [];
-  final List<String> _availableTasks = [
-    '完成用户界面设计',
-    '数据库优化',
-    'API接口开发',
-    '测试用例编写',
-    '项目文档整理',
-    '代码审查',
-    '性能优化',
-    '安全检查'
-  ];
+  List<String> _selectedTaskIds = [];
+  late Future<List<Task>> _tasksFuture;
+  List<Task> _cachedAvailableTasks = [];
 
   // 定义统一的渐变色
   final LinearGradient _appBarGradient = const LinearGradient(
@@ -38,6 +34,35 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
   final Color _accentColor = const Color(0xFFFF8C42);
 
   @override
+  void initState() {
+    super.initState();
+    // 【新增】在 initState 中调用 API
+    _tasksFuture = _fetchAndCacheTasks();
+  }
+
+  Future<List<Task>> _fetchAndCacheTasks() async {
+    try {
+      // 1. 【修正】调用 fetchScopedTasks (即 /api/tasks/myView)
+      final response = await TaskService.fetchScopedTasks(
+        pageSize: 100, // 获取足够多的任务
+      );
+
+      // 2. 缓存结果
+      if (mounted) {
+        setState(() {
+          _cachedAvailableTasks = response.tasks;
+        });
+      }
+      return response.tasks;
+
+    } catch (e) {
+      print('加载相关任务失败: $e');
+      // 如果失败，返回一个空列表
+      return [];
+    }
+  }
+
+  @override
   void dispose() {
     _todaySummaryController.dispose();
     _tomorrowPlanController.dispose();
@@ -45,16 +70,55 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
     super.dispose();
   }
 
-  void _submitLog() {
-    if (_formKey.currentState!.validate()) {
-      // 处理日志提交逻辑
+  void _submitLog() async {
+    // 1. 检查表单验证
+    if (!_formKey.currentState!.validate()) {
+      return; // 验证失败，停止
+    }
+
+    // 2. 检查是否正在提交
+    if (_isSubmitting) {
+      return; // 防止重复点击
+    }
+
+    // 3. 进入加载状态
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      // 4. 调用 API
+      final newLogId = await LogService.createLog(
+        todaySummary: _todaySummaryController.text.trim(),
+        tomorrowPlan: _tomorrowPlanController.text.trim(),
+        helpNeeded: _helpNeededController.text.trim(),
+        taskIds: _selectedTaskIds, // 使用真实的 ID 列表
+      );
+
+      // 5. 处理成功
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('日志创建成功！'),
+        SnackBar(
+          content: Text('日志 (ID: $newLogId) 创建成功！'),
           backgroundColor: Colors.green,
         ),
       );
-      Navigator.pop(context);
+      Navigator.pop(context); // 成功后关闭页面
+
+    } catch (e) {
+      // 6. 处理失败
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('日志创建失败: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      // 7. 结束加载状态
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
     }
   }
 
@@ -136,11 +200,11 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
           children: [
             Row(
               children: [
+                // ... (标题 "相关任务" 部分保持不变)
                 Container(
                   width: 4,
                   height: 20,
                   decoration: BoxDecoration(
-                    // 使用统一的渐变色
                     gradient: _appBarGradient,
                     borderRadius: BorderRadius.circular(2),
                   ),
@@ -156,7 +220,8 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
                 ),
                 const Spacer(),
                 Text(
-                  '已选择 ${_selectedTasks.length} 个',
+                  // 【修改】使用 _selectedTaskIds
+                  '已选择 ${_selectedTaskIds.length} 个',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey[600],
@@ -165,64 +230,126 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey[300]!),
-                borderRadius: BorderRadius.circular(8),
-                color: Colors.grey[50],
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  hint: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('选择相关任务'),
+
+            // 【修改】使用 FutureBuilder 来包装下拉框
+            FutureBuilder<List<Task>>(
+              future: _tasksFuture, // <-- 监听
+              builder: (context, snapshot) {
+                // 1. 加载中
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.grey[50],
+                    ),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2)
+                        ),
+                        SizedBox(width: 12),
+                        Text('正在加载任务列表...', style: TextStyle(color: Colors.grey[600])),
+                      ],
+                    ),
+                  );
+                }
+
+                // 2. 加载失败
+                if (snapshot.hasError) {
+                  return Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.red[300]!),
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.red[50],
+                    ),
+                    child: Text('加载任务失败: ${snapshot.error}', style: TextStyle(color: Colors.red[700])),
+                  );
+                }
+
+                // 3. 成功 (使用 _cachedAvailableTasks)
+                return Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.grey[50],
                   ),
-                  isExpanded: true,
-                  items: _availableTasks.map((task) {
-                    return DropdownMenuItem<String>(
-                      value: task,
-                      child: StatefulBuilder(
-                        builder: (context, setState) {
-                          final isSelected = _selectedTasks.contains(task);
-                          return CheckboxListTile(
-                            title: Text(task),
-                            value: isSelected,
-                            onChanged: (bool? value) {
-                              setState(() {
-                                if (value == true) {
-                                  if (!_selectedTasks.contains(task)) {
-                                    _selectedTasks.add(task);
-                                  }
-                                } else {
-                                  _selectedTasks.remove(task);
-                                }
-                              });
-                              this.setState(() {});
-                            },
-                            controlAffinity: ListTileControlAffinity.leading,
-                            activeColor: _accentColor, // 使用统一强调色
-                          );
-                        },
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      hint: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: Text('选择相关任务'),
                       ),
-                    );
-                  }).toList(),
-                  onChanged: (String? value) {
-                    // 处理在 DropdownMenuItem 中
-                  },
-                ),
-              ),
+                      isExpanded: true,
+                      // 【修改】遍历 _cachedAvailableTasks
+                      items: _cachedAvailableTasks.map((task) {
+                        return DropdownMenuItem<String>(
+                          // ⚠️ value 设为 task.taskId，因为 Dropdown 的 value 不能重复
+                          value: task.taskId,
+                          child: StatefulBuilder(
+                            builder: (context, setState) {
+                              // 【修改】检查 _selectedTaskIds
+                              final isSelected = _selectedTaskIds.contains(task.taskId);
+                              return CheckboxListTile(
+                                // 【修改】显示 task.title
+                                title: Text(task.title, style: TextStyle(fontSize: 14)),
+                                value: isSelected,
+                                onChanged: (bool? value) {
+                                  setState(() {
+                                    if (value == true) {
+                                      // 【修改】存储 task.taskId
+                                      if (!_selectedTaskIds.contains(task.taskId)) {
+                                        _selectedTaskIds.add(task.taskId);
+                                      }
+                                    } else {
+                                      _selectedTaskIds.remove(task.taskId);
+                                    }
+                                  });
+                                  // 触发外部 State 的刷新
+                                  this.setState(() {});
+                                },
+                                controlAffinity: ListTileControlAffinity.leading,
+                                activeColor: _accentColor,
+                              );
+                            },
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (String? value) {
+                        // 逻辑已在 CheckboxListTile 中处理
+                      },
+                    ),
+                  ),
+                );
+              },
             ),
-            if (_selectedTasks.isNotEmpty) ...[
+
+            // 【修改】显示已选任务的 Chips
+            if (_selectedTaskIds.isNotEmpty) ...[
               const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _selectedTasks.map((task) {
+                // 遍历 ID 列表
+                children: _selectedTaskIds.map((taskId) {
+                  // 从缓存中找到 Task 对象以获取标题
+                  final task = _cachedAvailableTasks.firstWhere(
+                        (t) => t.taskId == taskId,
+                    orElse: () => Task.fromJson({ // 创建一个临时的 Task 以防万一
+                      'taskId': taskId,
+                      'title': 'ID: $taskId',
+                      'creator': {'userId': '0', 'name': '?', 'email': '?'},
+                    }),
+                  );
+
                   return Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      // 使用统一的渐变色
                       gradient: _appBarGradient,
                       borderRadius: BorderRadius.circular(20),
                     ),
@@ -230,7 +357,7 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          task,
+                          task.title, // 显示任务标题
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
@@ -241,7 +368,7 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
                         GestureDetector(
                           onTap: () {
                             setState(() {
-                              _selectedTasks.remove(task);
+                              _selectedTaskIds.remove(taskId); // 按 ID 移除
                             });
                           },
                           child: const Icon(
@@ -261,7 +388,6 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
       ),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -320,15 +446,25 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _submitLog,
+                  onPressed: _isSubmitting ? null : _submitLog,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _accentColor, // 使用统一强调色
+                    backgroundColor: _accentColor,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                     elevation: 2,
+                    disabledBackgroundColor: Colors.grey[400],
                   ),
-                  child: const Text(
+                  child: _isSubmitting
+                      ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 3,
+                    ),
+                  )
+                      : const Text(
                     '创建日志',
                     style: TextStyle(
                       fontSize: 16,

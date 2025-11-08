@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/log.dart';
 import 'subtask_detail_view.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
@@ -7,16 +8,20 @@ import '../models/task.dart';
 import '../models/role.dart';
 import 'log_view_detail.dart';
 import '../services/task_service.dart';
+import '../services/auth_service.dart';
+
 
 class TaskDetailView extends StatefulWidget {
   final String taskId;
   final Role userRole;
   final Function(Task) onTaskUpdated;
+  final String currentUserId; // 【新增】当前登录用户ID
 
   TaskDetailView({
     required this.taskId,
     required this.userRole,
     required this.onTaskUpdated,
+    required this.currentUserId, // 【新增】
   });
 
   @override
@@ -192,17 +197,28 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     );
   }
 
-  Widget _buildTaskLog(Task loadedTask, Map<String, dynamic> dynamicProperties) {
+   Widget _buildTaskLog(Task loadedTask, Map<String, dynamic> dynamicProperties) {
+    // 1. 获取核心内容 (保持不变)
     final String logContent = dynamicProperties['log'] ?? '暂无日志';
-    final Map<String, dynamic> logData = {
-      'title': '任务日志: ${loadedTask.title}',
-      'author': '日志人',
-      'authorAvatar': '📄',
-      'date': DateTime.now(),
-      'content': logContent,
-      'status': '待审批',
-      'tags': ['任务', '汇报'],
-    };
+
+    // 2. 【修正】创建 Log 对象，使用 currentUserId 作为回退
+    // 如果 creator 为 null，使用当前登录用户ID
+    final String logUserId = loadedTask.creator?.userId ?? widget.currentUserId;
+    
+    // taskId 已经是 String 类型，不需要 toString()
+    final Log placeholderLog = Log(
+      logId: '0',
+      userId: logUserId, // 【修正】使用回退逻辑
+      logDate: DateTime.now(),
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      todaySummary: logContent,
+      tomorrowPlan: null,
+      helpNeeded: null,
+      status: '待审批',
+      tags: ['任务', '汇报'],
+      taskIds: [loadedTask.taskId], // 【修正】taskId 已经是 String，不需要 toString()
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -218,7 +234,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               context,
               MaterialPageRoute(
                 builder: (context) => LogDetailView(
-                  log: logData,
+                  log: placeholderLog,
                 ),
               ),
             );

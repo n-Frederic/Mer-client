@@ -1,5 +1,3 @@
-// lib/services/log_service.dart
-
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/log.dart';
@@ -21,7 +19,6 @@ class LogListResponse {
 }
 
 class LogService {
-  // 确保这个 _baseUrl 与您的 TaskService 一致
   static const String _baseUrl = 'http://10.0.2.2:8080/api';
 
   // 调用 GET /api/journals/scoped
@@ -47,7 +44,7 @@ class LogService {
     };
 
     if (mode == 'member' && memberIds != null && memberIds.isNotEmpty) {
-      params['memberIds'] = memberIds.join(','); // 转换为 "1002,1003"
+      params['memberIds'] = memberIds.join(',');
     }
     if (keyword != null && keyword.isNotEmpty) {
       params['keyword'] = keyword;
@@ -68,8 +65,6 @@ class LogService {
         final String jsonString = utf8.decode(response.bodyBytes);
         final Map<String, dynamic> responseData = json.decode(jsonString);
 
-        // 假设 API 成功时返回的 JSON 结构与 TaskListResponse 类似
-        // { "list": [...], "total": ..., "page": ..., "pageSize": ... }
         final List<dynamic> jsonList = responseData['list'] ?? [];
 
         final List<Log> logs = jsonList.map((json) => Log.fromJson(json)).toList();
@@ -91,5 +86,50 @@ class LogService {
     }
   }
 
-// (我们还可以在这里添加 createLog 等方法)
+  static Future<String> createLog({
+    required String todaySummary,
+    required String tomorrowPlan,
+    required String helpNeeded,
+    required List<String> taskIds,
+  }) async {
+    final authToken = await AuthService.getSavedToken();
+    if (authToken == null) {
+      throw Exception('用户未认证');
+    }
+
+    final uri = Uri.parse('$_baseUrl/journals');
+
+    final Map<String, dynamic> body = {
+      'todaySummary': todaySummary,
+      'tomorrowPlan': tomorrowPlan,
+      'helpNeeded': helpNeeded,
+      'taskIds': taskIds,
+    };
+
+    try {
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+        body: json.encode(body),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final Map<String, dynamic> responseData = json.decode(utf8.decode(response.bodyBytes));
+
+        if (responseData['ok'] == true && responseData.containsKey('id')) {
+          return responseData['id'].toString(); // 返回新日志的 ID
+        } else {
+          throw Exception('创建日志失败: ${responseData['message'] ?? '未知错误'}');
+        }
+      } else {
+        throw Exception('创建日志失败，服务器响应码: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('LogService 捕获到原始错误 (createLog): $e');
+      throw Exception('LogService 请求失败: $e');
+    }
+  }
 }

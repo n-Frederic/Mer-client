@@ -7,8 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 
 class TaskService {
-  // static const String _baseUrl = 'http://10.0.2.2:8080/api';
-  static const String _baseUrl = "http://127.0.0.1:8080/api";
+  static const String _baseUrl = 'http://10.0.2.2:8080/api';
+  // static const String _baseUrl = "http://127.0.0.1:8080/api";
 
   // 辅助函数：处理 API 请求的通用逻辑
   static Future<TaskListResponse> _fetchTasks(String path, {Map<String, String>? params}) async {

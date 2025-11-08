@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'log_view_detail.dart';
+import '../models/log.dart';
+import '../services/log_service.dart';
+import '../models/user.dart';
+import '../services/profile_service.dart';
+import '../services/auth_service.dart';
 
 class LogView extends StatefulWidget {
   @override
@@ -8,65 +13,23 @@ class LogView extends StatefulWidget {
 
 class _LogViewState extends State<LogView> with TickerProviderStateMixin {
   late AnimationController _animationController;
-  String _selectedScope = 'personal'; // personal, company, external
-  String _selectedMode = 'my'; // my, team, member, approval
+  String _selectedMode = 'my'; // my, team, approval
   String _selectedTimeFilter = 'all'; // all, today, this_week, this_year
   Set<String> _selectedMembers = {};
   String _searchTerm = '';
-
-  final Map<String, dynamic> _currentUser = {
-    'name': '张小兔',
-    'role': '团队长',
-    'department': '技术部',
-    'avatar': '🐰',
-    'canViewSubordinates': true,
-    'canRequestApproval': true,
+  Map<String, User> _userCache = {};
+  late Future<Map<String, dynamic>> _profileFuture;
+  late Future<LogListResponse> _logsFuture;
+  
+  // 【新增】当前用户信息
+  Map<String, dynamic> _currentUser = {
+    'name': '加载中...',
+    'role': '...',
+    'department': '...',
+    'avatar': '👤',
+    'canViewSubordinates': false,
+    'canRequestApproval': false,
   };
-
-  final List<Map<String, dynamic>> _teamMembers = [
-    {'id': '1', 'name': '小王', 'authorName': '小王', 'avatar': '🐱'},
-    {'id': '2', 'name': '小李', 'authorName': '小李', 'avatar': '🐶'},
-    {'id': '3', 'name': '小张', 'authorName': '小张', 'avatar': '🐼'},
-  ];
-
-  final List<Map<String, dynamic>> _logs = [
-    {
-      'id': '1',
-      'title': '项目进展汇报',
-      'content': '本周完成了用户界面优化，团队协作效率提升明显。下周计划开始后端接口对接工作。',
-      'author': '张小兔',
-      'authorAvatar': '🐰',
-      'date': DateTime.now(),
-      'mood': '😊',
-      'tags': ['项目', '团队'],
-      'status': '已通过',
-      'scope': 'department',
-    },
-    {
-      'id': '2',
-      'title': '技能学习记录',
-      'content': '深入学习了Flutter状态管理，对Provider有了更深理解。',
-      'author': '小王',
-      'authorAvatar': '🐱',
-      'date': DateTime.now().subtract(Duration(hours: 2)),
-      'mood': '🔥',
-      'tags': ['学习', '技术'],
-      'status': '待审批',
-      'scope': 'team',
-    },
-    {
-      'id': '3',
-      'title': '客户反馈处理',
-      'content': '处理了客户提出的UI优化建议，客户表示满意。',
-      'author': '小李',
-      'authorAvatar': '🐶',
-      'date': DateTime.now().subtract(Duration(days: 1)),
-      'mood': '😊',
-      'tags': ['客户', '反馈'],
-      'status': '已通过',
-      'scope': 'company',
-    },
-  ];
 
   @override
   void initState() {
@@ -76,7 +39,49 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
       vsync: this,
     );
     _animationController.forward();
+    _logsFuture = _fetchLogs();
+    _profileFuture = ProfileService.getUserProfile();
+    _loadUserProfile();
   }
+  
+  // 【新增】加载用户信息
+  void _loadUserProfile() async {
+    try {
+      final profileData = await ProfileService.getUserProfile();
+      if (profileData['user'] != null) {
+        final user = profileData['user'] as Map<String, dynamic>;
+        setState(() {
+          _currentUser = {
+            'name': user['name'] ?? '未知姓名',
+            'role': 'ID: ${user['role_id'] ?? '?'}',
+            'department': user['team'] ?? '未知团队',
+            'avatar': (user['name'] as String? ?? '').isNotEmpty 
+                ? (user['name'] as String).substring(0, 1) 
+                : '👤',
+            'canViewSubordinates': true, // 临时硬编码
+            'canRequestApproval': true, // 临时硬编码
+          };
+        });
+      }
+    } catch (e) {
+      print('加载用户信息失败: $e');
+    }
+  }
+
+  Future<LogListResponse> _fetchLogs() {
+    // 当 _selectedMode 为 'member' 但没有选择成员时，返回空列表
+    if (_selectedMode == 'member' && _selectedMembers.isEmpty) {
+      return Future.value(LogListResponse(logs: [], total: 0, page: 1, pageSize: 10));
+    }
+
+    return LogService.fetchScopedLogs(
+      mode: _selectedMode,
+      timeFilter: _selectedTimeFilter,
+      keyword: _searchTerm,
+      memberIds: _selectedMode == 'member' ? _selectedMembers.toList() : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -154,6 +159,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                           onChanged: (value) {
                             setState(() {
                               _searchTerm = value;
+                              _logsFuture = _fetchLogs();
                             });
                           },
                           decoration: InputDecoration(
@@ -177,13 +183,13 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                   padding: EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
-                      _buildFilterButton('my', '我的日志', Color(0xFFFF8C42)),
-                      if (_currentUser['canViewSubordinates']) ...[
+                      _buildFilterButton('my', '我的日志', Color(0xFFFF8C42), _currentUser['canViewSubordinates'] as bool),
+                      if (_currentUser['canViewSubordinates'] as bool) ...[
                         SizedBox(width: 8),
-                        _buildFilterButton('member', '成员日志', Color(0xFFFF8C42)),
+                        _buildFilterButton('member', '成员日志', Color(0xFFFF8C42), _currentUser['canViewSubordinates'] as bool),
                       ],
                       SizedBox(width: 8),
-                      _buildFilterButton('approval', '待审批', Color(0xFFFF8C42)),
+                      _buildFilterButton('approval', '待审批', Color(0xFFFF8C42), _currentUser['canViewSubordinates'] as bool),
                     ],
                   ),
                 ),
@@ -193,13 +199,13 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                   padding: EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
-                      _buildFilterButton('all', '全部', Color(0xFF4ECDC4)),
+                      _buildFilterButton('all', '全部', Color(0xFF4ECDC4), _currentUser['canViewSubordinates'] as bool),
                       SizedBox(width: 8),
-                      _buildFilterButton('today', '本日', Color(0xFF4ECDC4)),
+                      _buildFilterButton('today', '本日', Color(0xFF4ECDC4), _currentUser['canViewSubordinates'] as bool),
                       SizedBox(width: 8),
-                      _buildFilterButton('this_week', '本周', Color(0xFF4ECDC4)),
+                      _buildFilterButton('this_week', '本周', Color(0xFF4ECDC4), _currentUser['canViewSubordinates'] as bool),
                       SizedBox(width: 8),
-                      _buildFilterButton('this_year', '本年', Color(0xFF4ECDC4)),
+                      _buildFilterButton('this_year', '本年', Color(0xFF4ECDC4), _currentUser['canViewSubordinates'] as bool),
                     ],
                   ),
                 ),
@@ -214,13 +220,17 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildFilterButton(String value, String label, Color color) {
-    final isSelected = _selectedMode == value;
-    final isMemberButton = value == 'member' && _currentUser['canViewSubordinates'];
+
+  Widget _buildFilterButton(String value, String label, Color color, bool canViewSubordinates) {
+    // 【修正】让时间按钮也能正确高亮
+    final isSelected = _selectedMode == value || _selectedTimeFilter == value;
+    // 【修正】使用传入的 canViewSubordinates
+    final isMemberButton = value == 'member' && canViewSubordinates;
 
     return GestureDetector(
       onTap: () {
         setState(() {
+          // (这个逻辑是正确的)
           if (isMemberButton) {
             _selectedMode = value;
           } else if (value == 'my' || value == 'approval') {
@@ -229,6 +239,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
           } else {
             _selectedTimeFilter = value;
           }
+          _logsFuture = _fetchLogs();
         });
       },
       child: AnimatedContainer(
@@ -265,69 +276,45 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
       ),
     );
   }
+
+  // 【替换】整个 _showMemberSelectionDialog 方法
   void _showMemberSelectionDialog() {
     Set<String> tempSelectedMembers = Set.from(_selectedMembers);
     String tempSearchTerm = '';
+    String? selectedDepartment; // 部门 ID
+    String? selectedTeam; // 团队 ID
 
-    // 模拟层级数据，与您的实际数据结构相匹配
-    final List<String> departments = ['技术部', '市场部', '销售部'];
-    final Map<String, List<String>> teamsByDepartment = {
-      '技术部': ['前端团队', '后端团队'],
-      '市场部': ['运营团队', '品牌团队'],
-      '销售部': ['国内销售', '海外销售'],
-    };
-    final Map<String, List<Map<String, dynamic>>> membersByTeam = {
-      '前端团队': [
-        {'id': '1', 'name': '小王'},
-        {'id': '3', 'name': '小张'},
-      ],
-      '后端团队': [
-        {'id': '2', 'name': '小李'},
-      ],
-      '运营团队': [
-        {'id': '4', 'name': '小赵'},
-      ],
-      '品牌团队': [
-        {'id': '5', 'name': '小钱'},
-      ],
-      '国内销售': [
-        {'id': '6', 'name': '小孙'},
-      ],
-      '海外销售': [
-        {'id': '7', 'name': '小吴'},
-      ],
-    };
+    // 用于驱动 FutureBuilders 的 Futures
+    // (注意：这些 Future 需要在 StatefulBuilder 之外管理，
+    // 但为了简化，我们暂时在 setDialogState 中重新触发它们)
+    // 更好的做法是使用 .update() 方法
 
-    String? selectedDepartment;
-    String? selectedTeam;
+    // 我们需要一个方法来重新加载用户
+    Future<Map<String, dynamic>> loadUsers(String? deptId, String? teamId, String keyword) {
+      return ProfileService.fetchScopedUsers(
+        departmentId: deptId,
+        teamId: teamId,
+        keyword: keyword,
+      );
+    }
+
+    // 初始化 Futures
+    Future<List<dynamic>> departmentsFuture = ProfileService.fetchDepartments();
+    Future<List<dynamic>> teamsFuture = ProfileService.fetchTeams(departmentId: null);
+    Future<Map<String, dynamic>> usersFuture = loadUsers(null, null, '');
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            // 根据选定的部门和团队获取基础成员列表
-            List<Map<String, dynamic>> baseMembers = [];
-            if (selectedTeam != null) {
-              baseMembers = membersByTeam[selectedTeam] ?? [];
-            } else if (selectedDepartment != null) {
-              List<String> teamsInDepartment = teamsByDepartment[selectedDepartment] ?? [];
-              for (var team in teamsInDepartment) {
-                baseMembers.addAll(membersByTeam[team] ?? []);
-              }
-            } else {
-              baseMembers = _teamMembers;
-            }
-
-            // 在基础列表上进行模糊搜索过滤
-            final filteredMembers = baseMembers.where((member) {
-              return member['name'].toLowerCase().contains(tempSearchTerm.toLowerCase());
-            }).toList();
 
             return AlertDialog(
               title: Text('选择成员'),
               content: SizedBox(
                 width: double.maxFinite,
+                // 【修改】固定高度，防止 FutureBuilder 重绘时跳动
+                height: MediaQuery.of(context).size.height * 0.6,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -344,78 +331,126 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                       onChanged: (value) {
                         setDialogState(() {
                           tempSearchTerm = value;
+                          usersFuture = loadUsers(selectedDepartment, selectedTeam, tempSearchTerm);
                         });
                       },
                     ),
                     SizedBox(height: 12),
-                    // 部门下拉菜单
-                    DropdownButtonFormField<String>(
-                      decoration: InputDecoration(
-                        labelText: '部门',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 10),
-                      ),
-                      value: selectedDepartment,
-                      items: departments.map((String department) {
-                        return DropdownMenuItem(
-                          value: department,
-                          child: Text(department),
-                        );
-                      }).toList(),
-                      onChanged: (String? newValue) {
-                        setDialogState(() {
-                          selectedDepartment = newValue;
-                          selectedTeam = null;
-                          tempSearchTerm = ''; // 重置搜索词
-                        });
-                      },
-                    ),
-                    SizedBox(height: 12),
-                    // 团队下拉菜单（级联）
-                    DropdownButtonFormField<String>(
-                      decoration: InputDecoration(
-                        labelText: '团队',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 10),
-                      ),
-                      value: selectedTeam,
-                      items: selectedDepartment != null
-                          ? (teamsByDepartment[selectedDepartment] ?? []).map((String team) {
-                        return DropdownMenuItem(
-                          value: team,
-                          child: Text(team),
-                        );
-                      }).toList()
-                          : [],
-                      onChanged: (String? newValue) {
-                        setDialogState(() {
-                          selectedTeam = newValue;
-                          tempSearchTerm = ''; // 重置搜索词
-                        });
-                      },
-                    ),
-                    SizedBox(height: 12),
-                    // 成员列表（根据下拉菜单和搜索框双重过滤）
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: filteredMembers.length,
-                        itemBuilder: (BuildContext context, int index) {
-                          final member = filteredMembers[index];
-                          final isSelected = tempSelectedMembers.contains(member['id']);
-                          return CheckboxListTile(
-                            title: Text(member['name']),
-                            value: isSelected,
-                            onChanged: (bool? newValue) {
+
+                    // 【修改】部门下拉菜单 (使用 FutureBuilder)
+                    FutureBuilder<List<dynamic>>(
+                        future: departmentsFuture,
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData) {
+                            return Text('加载部门中...');
+                          }
+                          final departments = snapshot.data!;
+
+                          return DropdownButtonFormField<String>(
+                            decoration: InputDecoration(
+                              labelText: '部门',
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 10),
+                            ),
+                            value: selectedDepartment,
+                            // 假设 API 返回 { "dept_id": 1, "name": "技术部" }
+                            items: departments.map((dept) {
+                              return DropdownMenuItem(
+                                value: dept['dept_id'].toString(), // 存 ID
+                                child: Text(dept['name']), // 显示 Name
+                              );
+                            }).toList(),
+                            onChanged: (String? newValue) {
                               setDialogState(() {
-                                if (newValue == true) {
-                                  tempSelectedMembers.add(member['id']);
-                                } else {
-                                  tempSelectedMembers.remove(member['id']);
-                                }
+                                selectedDepartment = newValue;
+                                selectedTeam = null;
+                                // 重新加载团队和用户
+                                teamsFuture = ProfileService.fetchTeams(departmentId: selectedDepartment);
+                                usersFuture = loadUsers(selectedDepartment, selectedTeam, tempSearchTerm);
                               });
                             },
                           );
-                        },
+                        }
+                    ),
+                    SizedBox(height: 12),
+
+                    // 【修改】团队下拉菜单（级联, 使用 FutureBuilder)
+                    FutureBuilder<List<dynamic>>(
+                        future: teamsFuture, // 依赖于 selectedDepartment
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return Text('加载团队中...');
+                          }
+                          final teams = snapshot.data ?? [];
+
+                          return DropdownButtonFormField<String>(
+                            decoration: InputDecoration(
+                              labelText: '团队',
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 10),
+                            ),
+                            value: selectedTeam,
+                            items: teams.map((team) {
+                              return DropdownMenuItem(
+                                value: team['team_id'].toString(), // 存 ID
+                                child: Text(team['name']), // 显示 Name
+                              );
+                            }).toList(),
+                            onChanged: (String? newValue) {
+                              setDialogState(() {
+                                selectedTeam = newValue;
+                                // 重新加载用户
+                                usersFuture = loadUsers(selectedDepartment, selectedTeam, tempSearchTerm);
+                              });
+                            },
+                          );
+                        }
+                    ),
+                    SizedBox(height: 12),
+
+                    // 【修改】成员列表 (使用 FutureBuilder)
+                    Expanded(
+                      child: FutureBuilder<Map<String, dynamic>>(
+                          future: usersFuture,
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return Center(child: CircularProgressIndicator());
+                            }
+                            if (snapshot.hasError) {
+                              return Center(child: Text('加载用户失败'));
+                            }
+                            if (!snapshot.hasData || (snapshot.data?['list'] as List).isEmpty) {
+                              return Center(child: Text('未找到成员'));
+                            }
+
+                            final users = snapshot.data!['list'] as List<dynamic>;
+
+                            return ListView.builder(
+                              itemCount: users.length,
+                              itemBuilder: (BuildContext context, int index) {
+                                // API (GET /api/user/scoped) 返回 { user_id: ..., name: ... }
+                                final member = users[index];
+                                final memberId = member['user_id'].toString();
+                                final memberName = member['name'];
+
+                                final isSelected = tempSelectedMembers.contains(memberId);
+
+                                return CheckboxListTile(
+                                  title: Text(memberName),
+                                  value: isSelected,
+                                  onChanged: (bool? newValue) {
+                                    setDialogState(() {
+                                      if (newValue == true) {
+                                        tempSelectedMembers.add(memberId);
+                                      } else {
+                                        tempSelectedMembers.remove(memberId);
+                                      }
+                                    });
+                                  },
+                                );
+                              },
+                            );
+                          }
                       ),
                     ),
                   ],
@@ -432,6 +467,8 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                     setState(() {
                       _selectedMode = 'member';
                       _selectedMembers = tempSelectedMembers;
+                      // 【新增】确定后重新加载日志
+                      _logsFuture = _fetchLogs();
                     });
                     Navigator.of(context).pop();
                   },
@@ -444,243 +481,206 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildLogList() {
-    List<Map<String, dynamic>> filteredLogs = _getFilteredLogs();
+    Widget _buildLogList() {
+      // 使用 FutureBuilder 监听 _logsFuture
+      return FutureBuilder<LogListResponse>(
+        future: _logsFuture,
+        builder: (context, snapshot) {
 
-    if (filteredLogs.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('📝', style: TextStyle(fontSize: 60)),
-            SizedBox(height: 16),
-            Text(
-              '暂无日志记录',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF666666),
+          // 1. 加载中
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          }
+
+          // 2. 加载失败
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text('加载日志失败: ${snapshot.error}',
+                    style: TextStyle(color: Colors.red)),
               ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              _getEmptyStateMessage(),
-              style: TextStyle(
-                fontSize: 14,
-                color: Color(0xFF999999),
+            );
+          }
+
+          // 3. 成功，但列表为空
+          if (!snapshot.hasData || snapshot.data!.logs.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('📝', style: TextStyle(fontSize: 60)),
+                  SizedBox(height: 16),
+                  Text(
+                    '暂无日志记录',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF666666),
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    _getEmptyStateMessage(),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF999999),
+                    ),
+                  ),
+                ],
               ),
+            );
+          }
+
+          // 4. 成功，渲染列表
+          final logs = snapshot.data!.logs;
+          return ListView.builder(
+            padding: EdgeInsets.all(16),
+            itemCount: logs.length,
+            itemBuilder: (context, index) {
+              return _buildLogCard(logs[index]);
+            },
+          );
+        },
+      );
+    }
+
+    // 【替换】整个 _buildLogCard 方法
+    Widget _buildLogCard(Log log) {
+      // 【修改】从缓存中获取作者信息
+      // (我们稍后会实现 _userCache 的填充, 现在先用占位符)
+      final authorName = _userCache[log.userId]?.name ?? '用户 ${log.userId}';
+      final authorAvatar = _userCache[log.userId]?.username?.substring(0, 1) ?? '👤'; // 假设用首字母
+
+      return Container(
+        margin: EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 8,
+              offset: Offset(0, 4),
             ),
           ],
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min, // 【修正】限制卡片内容高度
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  // 【修改】使用占位头像
+                  Text(authorAvatar, style: TextStyle(fontSize: 20)),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min, // 【修正】限制内部 Column 高度
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          // 【修改】使用 todaySummary 或 title (如果存在)
+                          log.todaySummary ?? '日志 (ID: ${log.logId})',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF333333),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          authorName, // 【修改】使用缓存的作者名
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF666666),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(log.status), // 【修改】
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      log.status ?? '未知', // 【修改】
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    _formatDate(log.createdAt), // 【修改】使用 createdAt
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF999999),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 12),
+              // 【修改】显示 Today Summary
+              if (log.todaySummary != null && log.todaySummary!.isNotEmpty)
+                Text(
+                  log.todaySummary!,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF666666),
+                    height: 1.4,
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      spacing: 6,
+                      // 【修改】显示数据库返回的 Tags
+                      children: log.tags
+                          .map((tag) => Container(
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Color(0xFFFFE66D).withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          tag,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Color(0xFFFF8C42),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ))
+                          .toList(),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => _showLogDetail(log),
+                    icon: Icon(Icons.visibility,
+                        size: 20, color: Color(0xFF999999)),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return ListView.builder(
-      padding: EdgeInsets.all(16),
-      itemCount: filteredLogs.length,
-      itemBuilder: (context, index) {
-        return _buildLogCard(filteredLogs[index]);
-      },
-    );
-  }
-
-  Widget _buildLogCard(Map<String, dynamic> log) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(log['authorAvatar'], style: TextStyle(fontSize: 20)),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        log['title'],
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF333333),
-                        ),
-                      ),
-                      Text(
-                        log['author'],
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF666666),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(log['status']),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    log['status'],
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                SizedBox(width: 8),
-                Text(
-                  _formatDate(log['date']),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF999999),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 12),
-            Text(
-              log['content'],
-              style: TextStyle(
-                fontSize: 14,
-                color: Color(0xFF666666),
-                height: 1.4,
-              ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-            SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Wrap(
-                    spacing: 6,
-                    children: (log['tags'] as List<String>)
-                        .map((tag) => Container(
-                      padding: EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Color(0xFFFFE66D).withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        tag,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Color(0xFFFF8C42),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ))
-                        .toList(),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => _showLogDetail(log),
-                  icon: Icon(Icons.visibility,
-                      size: 20, color: Color(0xFF999999)),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  List<Map<String, dynamic>> _getFilteredLogs() {
-    final now = DateTime.now();
-    return _logs.where((log) {
-      if (_searchTerm.isNotEmpty) {
-        if (!log['title'].toLowerCase().contains(_searchTerm.toLowerCase()) &&
-            !log['content'].toLowerCase().contains(_searchTerm.toLowerCase())) {
-          return false;
-        }
-      }
-
-      bool scopeMatch = false;
-      switch (_selectedScope) {
-        case 'personal':
-          scopeMatch =
-              log['scope'] == 'team' || log['author'] == _currentUser['name'];
-          break;
-        case 'company':
-          scopeMatch =
-              log['scope'] == 'department' || log['scope'] == 'company';
-          break;
-        case 'external':
-          scopeMatch = log['scope'] == 'external';
-          break;
-
-      }
-      if (!scopeMatch) return false;
-
-      bool modeMatch = false;
-      switch (_selectedMode) {
-        case 'my':
-          modeMatch = log['author'] == _currentUser['name'];
-          break;
-        case 'team':
-          modeMatch = log['scope'] == 'team';
-          break;
-        case 'member':
-        // 成员筛选逻辑
-          if (_selectedMembers.isEmpty) return false;
-          modeMatch = _selectedMembers.any(
-                  (id) => _teamMembers.any((m) => m['id'] == id && m['name'] == log['author']));
-          break;
-        case 'approval':
-          modeMatch = log['status'] == '待审批';
-          break;
-        default:
-          modeMatch = true;
-      }
-      if (!modeMatch) return false;
-
-      DateTime logDate = log['date'];
-      bool timeMatch = false;
-      switch (_selectedTimeFilter) {
-        case 'all':
-          timeMatch = true;
-          break;
-        case 'today':
-          timeMatch = logDate.year == now.year &&
-              logDate.month == now.month &&
-              logDate.day == now.day;
-          break;
-        case 'this_week':
-          final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-          final endOfWeek = startOfWeek.add(Duration(days: 6));
-          timeMatch = logDate
-              .isAfter(startOfWeek.subtract(Duration(microseconds: 1))) &&
-              logDate.isBefore(endOfWeek.add(Duration(days: 1)));
-          break;
-        case 'this_year':
-          timeMatch = logDate.year == now.year;
-          break;
-      }
-
-      return timeMatch;
-    }).toList();
-  }
-
-  Color _getStatusColor(String status) {
+  Color _getStatusColor(String? status) {
     switch (status) {
       case '已通过':
         return Color(0xFF4ECDC4);
@@ -723,7 +723,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
     }
   }
 
-  void _showLogDetail(Map<String, dynamic> log) {
+  void _showLogDetail(Log log) { // <-- 【已修改】
     Navigator.push(
       context,
       MaterialPageRoute(
