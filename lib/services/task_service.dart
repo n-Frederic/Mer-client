@@ -7,8 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 
 class TaskService {
-  static const String _baseUrl = 'http://10.0.2.2:8080/api';
-  // static const String _baseUrl = "http://127.0.0.1:8080/api";
+  // static const String _baseUrl = 'http://10.0.2.2:8080/api';
+  static const String _baseUrl = "http://127.0.0.1:8080/api";
 
   // 辅助函数：处理 API 请求的通用逻辑
   static Future<TaskListResponse> _fetchTasks(String path, {Map<String, String>? params}) async {
@@ -129,4 +129,62 @@ class TaskService {
       throw Exception('TaskService 请求失败: $e');
     }
   }
+
+// 创建任务
+  static Future<Map<String, dynamic>> createTask({
+    required int userId,
+    required String title,
+    required String description,
+    required DateTime dueAt,
+    required List<String> tags,
+    required List<int> assigneeIds,
+    String priority = "Medium",
+  }) async {
+    final authToken = await AuthService.getSavedToken();
+    if (authToken == null) {
+      throw Exception('用户未认证，请先登录');
+    }
+
+    // 修复：使用正确的接口地址 - 应该是 /tasks 而不是 /task/create
+    final url = Uri.parse("$_baseUrl/tasks");
+
+    final body = jsonEncode({
+      "title": title,
+      "description": description,
+      "dueAt": dueAt.toUtc().toIso8601String(),
+      "priority": priority,
+      "assigneeIds": assigneeIds,
+      "tags": tags,
+    });
+
+    print('📤 创建任务请求 URL: $url');
+    print('📤 创建任务请求体: $body');
+    print('🔑 使用Token: ${authToken.substring(0, 20)}...');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+        body: body,
+      );
+
+      print('📥 创建任务响应状态码: ${response.statusCode}');
+      print('📥 创建任务响应体: ${utf8.decode(response.bodyBytes)}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      } else {
+        throw Exception("创建任务失败: ${response.statusCode} ${response.body}");
+      }
+    } catch (e) {
+      print('💥 创建任务请求异常: $e');
+      throw Exception("创建任务请求失败: $e");
+    }
+  }
+
+
+
 }

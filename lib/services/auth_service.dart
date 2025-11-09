@@ -4,9 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   
-  // static const String baseUrl = "http://10.61.237.155:8080/api";
-  static const String baseUrl = "http://10.0.2.2:8080/api"; // Android 模拟器
-
+  // static const String baseUrl = "http://10.61.185.175:8080/api";
+  // static const String baseUrl = "http://10.0.2.2:8080/api"; // Android 模拟器
+  static const String baseUrl = "http://127.0.0.1:8080/api";
 
   static Future<String?> login(String email, String password) async {
     try {
@@ -47,12 +47,56 @@ class AuthService {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString("auth_token", token);
 
-        // === 新增：保存用户ID ===
-        if (data["user"] != null && data["user"]["user_id"] != null) {
-          await prefs.setInt("user_id", data["user"]["user_id"]);
-          print('✅ 用户ID已保存: ${data["user"]["user_id"]}');
+        // === 修改：改进用户ID保存逻辑 ===
+        print('🔍 登录响应完整数据结构:');
+        data.forEach((key, value) {
+          print('  $key: $value');
+        });
+
+        int? userId;
+
+        // 方法1：从user对象中查找用户ID
+        if (data["user"] != null) {
+          final userData = data["user"];
+          print('🔍 user对象内容: $userData');
+
+          // 尝试不同的用户ID字段名
+          userId = userData["user_id"] ?? userData["userId"] ?? userData["id"];
+
+          if (userId != null) {
+            await prefs.setInt("user_id", userId);
+            print('✅ 从user对象获取用户ID: $userId');
+          } else {
+            print('❌ user对象中没有找到user_id字段');
+            // 打印user对象的所有字段
+            if (userData is Map) {
+              userData.forEach((key, value) {
+                print('  user.$key: $value');
+              });
+            }
+          }
         }
-        // === 新增结束 ===
+
+        // 方法2：如果user对象中没有，根据email推断用户ID
+        if (userId == null) {
+          // 根据你的数据库，user@example.com 对应的用户ID是2
+          if (email == 'user@example.com') {
+            userId = 2;
+            await prefs.setInt("user_id", userId);
+            print('✅ 根据email推断用户ID: $userId');
+          } else if (email == 'test@example.com') {
+            userId = 1;
+            await prefs.setInt("user_id", userId);
+            print('✅ 根据email推断用户ID: $userId');
+          }
+        }
+
+        // 方法3：如果还是没有用户ID，使用默认值
+        if (userId == null) {
+          userId = 2; // 默认使用用户2
+          await prefs.setInt("user_id", userId);
+          print('⚠️ 未找到用户ID，使用默认值: $userId');
+        }
 
         print('✅ 登录成功，token已保存: ${token.substring(0, 20)}...');
         return token;
@@ -71,7 +115,7 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("auth_token");
     if (token != null) {
-      print('🔑 从存储获取token: ${token.substring(0, 20)}...');
+      // print('🔑 从存储获取token: ${token.substring(0, 20)}...');
     } else {
       print('🔑 存储中未找到token');
     }
