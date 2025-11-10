@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/app_config.dart';
 
 class AuthService {
-  
-  // static const String baseUrl = "http://10.61.185.175:8080/api";
-  // static const String baseUrl = "http://10.0.2.2:8080/api"; // Android 模拟器
-  static const String baseUrl = "http://127.0.0.1:8080/api";
+
+  static final String baseUrl = AppConfig.baseUrl;
 
   static Future<String?> login(String email, String password) async {
     try {

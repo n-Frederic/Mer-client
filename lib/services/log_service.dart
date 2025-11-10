@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/log.dart';
 import 'auth_service.dart';
+import '../config/app_config.dart';
 
 // 定义日志列表的响应结构
 class LogListResponse {
@@ -19,7 +20,7 @@ class LogListResponse {
 }
 
 class LogService {
-  static const String _baseUrl = 'http://10.0.2.2:8080/api';
+  static final String baseUrl = AppConfig.baseUrl;
 
   // 调用 GET /api/journals/scoped
   static Future<LogListResponse> fetchScopedLogs({
@@ -50,7 +51,7 @@ class LogService {
       params['keyword'] = keyword;
     }
 
-    final uri = Uri.parse('$_baseUrl/journals/scoped').replace(queryParameters: params);
+    final uri = Uri.parse('$baseUrl/journals/scoped').replace(queryParameters: params);
 
     try {
       final response = await http.get(
@@ -97,7 +98,7 @@ class LogService {
       throw Exception('用户未认证');
     }
 
-    final uri = Uri.parse('$_baseUrl/journals');
+    final uri = Uri.parse('$baseUrl/journals');
 
     final Map<String, dynamic> body = {
       'todaySummary': todaySummary,

@@ -4,12 +4,12 @@ import '../services/auth_service.dart';
 import '../models/task.dart';
 import '../models/task_list_response.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/app_config.dart';
 
 
 class TaskService {
-  // static const String _baseUrl = 'http://10.0.2.2:8080/api';
-  static const String _baseUrl = "http://127.0.0.1:8080/api";
 
+  static final String baseUrl = AppConfig.baseUrl;
   // 辅助函数：处理 API 请求的通用逻辑
   static Future<TaskListResponse> _fetchTasks(String path, {Map<String, String>? params}) async {
     final authToken = await AuthService.getSavedToken();
@@ -18,7 +18,7 @@ class TaskService {
       throw Exception('用户未认证，请先登录');
     }
 
-    final uri = Uri.parse('$_baseUrl$path').replace(queryParameters: params);
+    final uri = Uri.parse('$baseUrl$path').replace(queryParameters: params);
 
     try {
       final response = await http.get(
@@ -100,7 +100,7 @@ class TaskService {
       throw Exception('用户未认证，请先登录');
     }
 
-    final uri = Uri.parse('$_baseUrl/tasks/$taskId');
+    final uri = Uri.parse('$baseUrl/tasks/$taskId');
 
     try {
       final response = await http.get(
@@ -146,7 +146,7 @@ class TaskService {
     }
 
     // 修复：使用正确的接口地址 - 应该是 /tasks 而不是 /task/create
-    final url = Uri.parse("$_baseUrl/tasks");
+    final url = Uri.parse("$baseUrl/tasks");
 
     final body = jsonEncode({
       "title": title,

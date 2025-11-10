@@ -5,14 +5,13 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../services/task_service.dart';
+import '../config/app_config.dart';
 
 class EisenhowerMatrixService {
 
   static const bool useMockData = false; // 设为 false 使用真实接口
 
-  // static const String _baseUrl = "http://127.0.0.1:8080/api";
-  static const String _baseUrl = "http://10.0.2.2:8080/api"; // Android 模拟器
-  // static const String _baseUrl = "http://10.61.237.155:8080/api"; // 替换为实际后端地址
+  static final String baseUrl = AppConfig.baseUrl;
 
   final http.Client client;
 
@@ -49,7 +48,7 @@ class EisenhowerMatrixService {
 
       print('🚀 请求公司重要任务...');
       final response = await client.get(
-        Uri.parse('$_baseUrl/company-tasks/important'),
+        Uri.parse('$baseUrl/company-tasks/important'),
         headers: headers,
       );
 
@@ -77,7 +76,7 @@ class EisenhowerMatrixService {
 
       print('🚀 请求个人任务，用户ID: $userId');
       final response = await client.get(
-        Uri.parse('$_baseUrl/personal-task'), //请求个人任务接口
+        Uri.parse('$baseUrl/personal-task'), //请求个人任务接口
         headers: headers,
       );
 
@@ -143,7 +142,7 @@ class EisenhowerMatrixService {
 
       print('🚀 创建个人任务，用户ID: $userId, 任务: $tasks');
       final response = await client.post(
-        Uri.parse('$_baseUrl/personal-task'),
+        Uri.parse('$baseUrl/personal-task'),
         headers: headers, // === 修改：使用认证头 ===
         body: json.encode({
           'personal_tasks': tasks,
@@ -174,7 +173,7 @@ class EisenhowerMatrixService {
 
       print('🚀 更新个人任务，用户ID: $userId, 任务: $tasks');
       final response = await client.put(
-        Uri.parse('$_baseUrl/personal-task'),
+        Uri.parse('$baseUrl/personal-task'),
         headers: headers, // === 使用认证头 ===
         body: json.encode({
           'personal_tasks': tasks,
@@ -206,7 +205,7 @@ class EisenhowerMatrixService {
 
       print('🚀 请求所有公司任务');
       final response = await client.get(
-        Uri.parse('$_baseUrl/company-tasks'),
+        Uri.parse('$baseUrl/company-tasks'),
         headers: headers, // === 修改：使用认证头 ===
       );
 
@@ -235,7 +234,7 @@ class EisenhowerMatrixService {
 
       print('🚀 根据状态筛选任务，状态: $status');
       final response = await client.get(
-        Uri.parse('$_baseUrl/company-tasks/by-status?status=$status'),
+        Uri.parse('$baseUrl/company-tasks/by-status?status=$status'),
         headers: headers, // === 修改：使用认证头 ===
       );
 
@@ -263,7 +262,7 @@ class EisenhowerMatrixService {
 
       print('🚀 请求个人日志列表...');
       final response = await client.get(
-        Uri.parse('$_baseUrl/journals/').replace(queryParameters: {
+        Uri.parse('$baseUrl/journals/').replace(queryParameters: {
           'page': '1',
           'pageSize': '10', // 获取最近10条日志
         }),

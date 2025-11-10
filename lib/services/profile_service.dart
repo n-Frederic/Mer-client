@@ -2,10 +2,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'auth_service.dart';
+import '../config/app_config.dart';
 
 class ProfileService {
-  // static const String baseUrl = 'http://127.0.0.1:8080/api/user';
-  static const String baseUrl = 'http://10.0.2.2:8080/api/user';
+  static final String baseUrl = AppConfig.baseUrl;
 
   // 获取认证头信息
   static Future<Map<String, String>> _getAuthHeaders() async {
