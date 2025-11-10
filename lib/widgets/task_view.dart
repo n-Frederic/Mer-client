@@ -66,8 +66,7 @@ class _CalendarViewState extends State<CalendarView>
     return fetchedRole;
   }
 
-<<<<<<< Updated upstream
-=======
+
   // 【新增】获取当前登录用户ID的辅助方法
   Future<String> _getCurrentUserId() async {
     final userId = await AuthService.getSavedUserId();
@@ -78,7 +77,6 @@ class _CalendarViewState extends State<CalendarView>
   }
 
   // 【关键修复】移除 userId 参数
->>>>>>> Stashed changes
   Future<List<Task>> _fetchTasksByMode(String mode) async {
     try {
       TaskListResponse response;
