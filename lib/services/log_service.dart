@@ -66,15 +66,19 @@ class LogService {
         final String jsonString = utf8.decode(response.bodyBytes);
         final Map<String, dynamic> responseData = json.decode(jsonString);
 
-        final List<dynamic> jsonList = responseData['list'] ?? [];
+        if (responseData['data'] == null) {
+          throw Exception('响应格式错误: 未找到 "data" 字段');
+        }
+        final Map<String, dynamic> data = responseData['data'];
+        final List<dynamic> jsonList = data['list'] ?? [];
 
         final List<Log> logs = jsonList.map((json) => Log.fromJson(json)).toList();
 
         return LogListResponse(
           logs: logs,
-          total: responseData['total'] ?? 0,
-          page: responseData['page'] ?? 1,
-          pageSize: responseData['pageSize'] ?? 10,
+          total: data['total'] ?? 0,
+          page: data['page'] ?? 1,
+          pageSize: data['pageSize'] ?? 10,
         );
 
       } else {
@@ -98,12 +102,16 @@ class LogService {
       throw Exception('用户未认证');
     }
 
-    final uri = Uri.parse('$baseUrl/journals');
+    final uri = Uri.parse('$baseUrl/journals/');
+    final DateTime now = DateTime.now();
+    final String formattedDate =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
     final Map<String, dynamic> body = {
       'todaySummary': todaySummary,
       'tomorrowPlan': tomorrowPlan,
       'helpNeeded': helpNeeded,
+      "log_date": formattedDate,
       'taskIds': taskIds,
     };
 
@@ -126,6 +134,7 @@ class LogService {
           throw Exception('创建日志失败: ${responseData['message'] ?? '未知错误'}');
         }
       } else {
+        print('❌ createLog 失败，请求的 URL: $uri');
         throw Exception('创建日志失败，服务器响应码: ${response.statusCode}');
       }
     } catch (e) {

@@ -5,7 +5,7 @@ import 'auth_service.dart';
 import '../config/app_config.dart';
 
 class ProfileService {
-  static final String baseUrl = AppConfig.baseUrl;
+  static final String baseUrl = AppConfig.baseUrl + "/user";
 
   // 获取认证头信息
   static Future<Map<String, String>> _getAuthHeaders() async {
