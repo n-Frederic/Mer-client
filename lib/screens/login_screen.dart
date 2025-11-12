@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import 'reset_password_screen.dart'; // 【新增】导入新屏幕
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -11,6 +12,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  // 【移除】_isSendingCode 逻辑已转移
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -29,7 +31,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       begin: Offset(0, 0.3),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack));
-    
+
     _animationController.forward();
   }
 
@@ -37,6 +39,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
+        // 【复用】渐变色背景
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -59,7 +62,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Logo区域
+                      // 【复用】Logo
                       Container(
                         width: 120,
                         height: 120,
@@ -82,8 +85,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                         ),
                       ),
                       SizedBox(height: 32),
-                      
-                      // 标题
+
+                      // 【复用】标题
                       Text(
                         'Pandora',
                         style: TextStyle(
@@ -110,8 +113,8 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                         ),
                       ),
                       SizedBox(height: 48),
-                      
-                      // 登录表单
+
+                      // 【复用】登录表单
                       Card(
                         elevation: 16,
                         shape: RoundedRectangleBorder(
@@ -126,22 +129,16 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                 TextFormField(
                                   controller: _usernameController,
                                   decoration: InputDecoration(
-                                    labelText: '用户名',
+                                    labelText: '用户名 / 邮箱',
                                     prefixIcon: Icon(Icons.person, color: Color(0xFFFF8C42)),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                      borderSide: BorderSide(color: Color(0xFFFF8C42)),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                      borderSide: BorderSide(color: Color(0xFFFF8C42), width: 2),
-                                    ),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Color(0xFFFF8C42))),
+                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Color(0xFFFF8C42), width: 2)),
                                     filled: true,
                                     fillColor: Color(0xFFFFF8E1),
                                   ),
                                   validator: (value) {
                                     if (value?.isEmpty ?? true) {
-                                      return '请输入用户名';
+                                      return '请输入用户名或邮箱';
                                     }
                                     return null;
                                   },
@@ -153,25 +150,38 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                   decoration: InputDecoration(
                                     labelText: '密码',
                                     prefixIcon: Icon(Icons.lock, color: Color(0xFFFF8C42)),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                      borderSide: BorderSide(color: Color(0xFFFF8C42)),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                      borderSide: BorderSide(color: Color(0xFFFF8C42), width: 2),
-                                    ),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Color(0xFFFF8C42))),
+                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Color(0xFFFF8C42), width: 2)),
                                     filled: true,
                                     fillColor: Color(0xFFFFF8E1),
                                   ),
                                   validator: (value) {
-                                    if (value?.isEmpty ?? true) {
+                                    // 仅在点击“登录”时才验证密码
+                                    if (_isLoading && (value?.isEmpty ?? true)) {
                                       return '请输入密码';
                                     }
                                     return null;
                                   },
                                 ),
-                                SizedBox(height: 32),
+
+                                // --- 【⬇️ 忘记密码按钮 (逻辑已修改) ⬇️】 ---
+                                SizedBox(height: 16),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
+                                    onPressed: _forgotPassword, // 只调用 _forgotPassword
+                                    child: Text(
+                                      '忘记密码?',
+                                      style: TextStyle(
+                                        color: Color(0xFFFF8C42),
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                // --- 【⬆️ 修改结束 ⬆️】 ---
+
+                                SizedBox(height: 16),
                                 SizedBox(
                                   width: double.infinity,
                                   height: 56,
@@ -179,24 +189,15 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                     onPressed: _isLoading ? null : _login,
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Color(0xFFFF8C42),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                       elevation: 8,
                                     ),
                                     child: _isLoading
-                                        ? CircularProgressIndicator(
-                                            color: Colors.white,
-                                            strokeWidth: 2,
-                                          )
+                                        ? CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
                                         : Text(
-                                            '开始使用 🚀',
-                                            style: TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                            ),
-                                          ),
+                                      '开始使用 🚀',
+                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -216,33 +217,50 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   }
 
   void _login() async {
-    if (_formKey.currentState?.validate() ?? false) {
-      setState(() {
-        _isLoading = true;
-      });
+    // 触发登录按钮的验证
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
-      final username = _usernameController.text.trim();
-      final password = _passwordController.text.trim();
+    setState(() {
+      _isLoading = true;
+    });
 
-      final token = await AuthService.login(username, password);
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
 
-      if (!mounted) return;
+    final token = await AuthService.login(username, password);
 
-      setState(() {
-        _isLoading = false;
-      });
+    if (!mounted) return;
 
-      if (token != null) {
-        // 登录成功 → 跳转到主页
-        Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        // 登录失败 → 弹出提示
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("用户名或密码错误")),
-        );
-      }
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (token != null) {
+      Navigator.pushReplacementNamed(context, '/home');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("用户名或密码错误")),
+      );
     }
   }
+
+  // --- 【⬇️ 忘记密码逻辑 (已修改为新流程) ⬇️】 ---
+  void _forgotPassword() {
+    // 1. 获取邮箱以便预填充
+    final email = _usernameController.text.trim();
+
+    // 2. 直接导航到新屏幕，并传递邮箱
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ResetPasswordScreen(
+          // 仅当它看起来像邮箱时才传递，否则传空
+          email: email.contains('@') ? email : '',
+        ),
+      ),
+    );
+  }
+  // --- 【⬆️ 修改结束 ⬆️】 ---
 
   @override
   void dispose() {

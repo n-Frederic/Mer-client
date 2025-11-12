@@ -134,6 +134,80 @@ class AuthService {
   }
   // === 新增结束 ===
 
+  // --- 找回密码 第 1 步 ---
+  static Future<Map<String, dynamic>> sendVerificationCode(String email) async {
+    // 根据 API 文档，它复用了 /send-verification-code/
+    // 根据我们之前的排查，它可能需要结尾的斜杠
+    final uri = Uri.parse('$baseUrl/send-verification-code/');
+
+    print('AuthService: [sendVerificationCode] 发送到: $email');
+    print('AuthService: [sendVerificationCode] URL: $uri');
+
+    try {
+      final response = await http.post(
+        uri,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"email": email}),
+      );
+
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      print('AuthService: [sendVerificationCode] 响应: $data');
+
+      // 检查 'ok: true' 或 'error: true'
+      if (data.containsKey('ok') && data['ok'] == true) {
+        print('AuthService: [sendVerificationCode] 成功。');
+        return {'ok': true, 'message': data['message'] ?? '验证码已发送'};
+      } else {
+        // API 返回了 'error: true'
+        print('AuthService: [sendVerificationCode] API 错误: ${data['message']}');
+        return {'ok': false, 'message': data['message'] ?? '发送失败'};
+      }
+    } catch (e) {
+      // 网络或其他异常
+      print('AuthService: [sendVerificationCode] 网络错误: $e');
+      return {'ok': false, 'message': '网络请求失败，请稍后再试'};
+    }
+  }
+
+// --- 找回密码 第 2 步 ---
+  static Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    // 根据 API 文档，使用 /forgot-password/reset
+    final uri = Uri.parse('$baseUrl/forgot-password/reset');
+    print('AuthService: [resetPassword] 重置邮箱: $email');
+
+    try {
+      final response = await http.post(
+        uri,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "email": email,
+          "verificationCode": code,
+          "newPassword": newPassword,
+        }),
+      );
+
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      print('AuthService: [resetPassword] 响应: $data');
+
+      if (data.containsKey('ok') && data['ok'] == true) {
+        print('AuthService: [resetPassword] 成功。');
+        return {'ok': true, 'message': data['message'] ?? '密码重置成功'};
+      } else {
+        // API 返回了 'error: true'
+        print('AuthService: [resetPassword] API 错误: ${data['message']}');
+        return {'ok': false, 'message': data['message'] ?? '重置失败'};
+      }
+    } catch (e) {
+      // 网络或其他异常
+      print('AuthService: [resetPassword] 网络错误: $e');
+      return {'ok': false, 'message': '网络请求失败，请稍后再试'};
+    }
+  }
+
   static Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove("auth_token");
