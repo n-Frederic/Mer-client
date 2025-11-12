@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../services/task_service.dart';
 import '../services/auth_service.dart';
+import '../config/app_config.dart';
 
 class CreateTaskScreen extends StatefulWidget {
   @override
@@ -16,6 +17,8 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   final _taskContentController = TextEditingController();
   final _tagController = TextEditingController();
 
+  static final String baseUrl = AppConfig.baseUrl;
+
   DateTime? _selectedDeadline;
   String _taskType = 'self'; // 'self' or 'employee'
   List<int> _selectedEmployeeIds = [];
@@ -23,6 +26,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   String? _selectedDepartment;
   String? _selectedTeam;
   List<String> _selectedTags = [];
+  String _selectedPriority = 'Medium';
 
   bool _isLoading = false;
   bool _isCreating = false;
@@ -31,7 +35,29 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   List<String> _departments = [];
   final _searchController = TextEditingController();
 
-  // 添加缺失的方法
+  int? _currentUserRoleId;
+  String? _currentUserRoleName;
+
+  final List<String> _priorityOptions = ['Low', 'Medium', 'High', 'Urgent'];
+
+  // 角色级别映射
+  final Map<int, String> _roleHierarchy = {
+    1: 'CEO',
+    2: 'Manager',
+    3: 'Team Leader',
+    4: 'Member',
+    5: 'Admin'
+  };
+
+  // 角色权限级别（数字越小权限越高）
+  final Map<int, int> _roleLevels = {
+    1: 1, // CEO - 最高级别
+    2: 2, // Manager
+    3: 3, // Team Leader
+    4: 4, // Member - 最低级别
+    5: 2, // Admin - 等同于Manager级别
+  };
+
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -55,12 +81,14 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchAssignees();
+    _fetchUserRoleAndAssignees();
   }
 
-  /// 获取员工数据
-  Future<void> _fetchAssignees() async {
+
+  /// 获取用户角色和员工数据
+  Future<void> _fetchUserRoleAndAssignees() async {
     setState(() => _isLoading = true);
+
     try {
       final token = await AuthService.getSavedToken();
       if (token == null) {
@@ -68,84 +96,159 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
         return;
       }
 
-      print('🔑 使用Token: ${token.substring(0, 20)}...');
+      // 1️⃣ 获取当前用户信息
+      final profileUrl = Uri.parse('$baseUrl/user/profile');
+      print('👤 请求用户信息URL: $profileUrl');
 
-      final url = Uri.parse('http://127.0.0.1:8080/api/tasks/assignees');
-      print('🌐 请求员工列表URL: $url');
-
-      final response = await http.get(
-        url,
+      final profileResponse = await http.get(
+        profileUrl,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
       );
 
-      print('📡 获取员工响应状态码: ${response.statusCode}');
-      print('📡 获取员工响应体: ${utf8.decode(response.bodyBytes)}');
+      print('📡 获取用户信息响应状态码: ${profileResponse.statusCode}');
+
+      if (profileResponse.statusCode != 200) {
+        _showError('获取用户信息失败: ${profileResponse.statusCode}');
+        return;
+      }
+
+      final profileData = jsonDecode(utf8.decode(profileResponse.bodyBytes));
+      print('📡 用户信息响应数据: $profileData');
+
+      // 根据您的接口返回结构调整字段访问
+      if (profileData['ok'] == true && profileData['user'] != null) {
+        final userData = profileData['user'];
+        _currentUserRoleId = userData['role_id'];
+        _currentUserRoleName = _roleHierarchy[_currentUserRoleId] ?? '未知角色';
+
+        print('🎯 当前用户角色ID: $_currentUserRoleId, 角色名称: $_currentUserRoleName');
+      } else {
+        _showError('无法解析用户信息');
+        return;
+      }
+
+      if (_currentUserRoleId == null) {
+        _showError('无法获取当前用户角色，请检查登录状态');
+        return;
+      }
+
+      // 2️⃣ 获取员工列表
+      final assigneesUrl = Uri.parse('$baseUrl/tasks/assignees');
+      print('🌐 请求员工列表URL: $assigneesUrl');
+
+      final assigneesResponse = await http.get(
+        assigneesUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('📡 获取员工响应状态码: ${assigneesResponse.statusCode}');
 
       List<Map<String, dynamic>> employeeList = [];
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data is Map && data.containsKey('list')) {
-          employeeList = List<Map<String, dynamic>>.from(data['list']);
-        }
-      }
+      if (assigneesResponse.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(assigneesResponse.bodyBytes));
+        print('📡 员工列表响应数据: $data');
 
-      // 如果后端返回空数据，使用临时测试数据
-      if (employeeList.isEmpty) {
-        print('⚠️ 后端返回空员工列表，使用临时测试数据');
-        employeeList = [
-          {
-            'id': 3,
-            'name': '张明',
-            'department': '技术部',
-            'team': 'React前端组',
-            'email': 'zhangming@example.com'
-          },
-          {
-            'id': 4,
-            'name': '李华',
-            'department': '技术部',
-            'team': 'Vue前端组',
-            'email': 'lihua@example.com'
-          },
-          {
-            'id': 5,
-            'name': '王强',
-            'department': '技术部',
-            'team': 'Java后端组',
-            'email': 'wangqiang@example.com'
-          },
-          {
-            'id': 6,
-            'name': '刘芳',
-            'department': '技术部',
-            'team': 'Python后端组',
-            'email': 'liufang@example.com'
+        // === 修复：根据实际数据结构调整 ===
+        if (data is Map && data.containsKey('data') && data['data'] is Map) {
+          final dataMap = data['data'];
+          if (dataMap.containsKey('list')) {
+            employeeList = List<Map<String, dynamic>>.from(dataMap['list']);
+
+            print('👥 员工原始列表长度: ${employeeList.length}');
+
+            // 转换数据结构以匹配代码期望的格式
+            employeeList = employeeList.map((employee) {
+              // 将 id 转换为 user_id，role_id 转换为 role
+              return {
+                'user_id': employee['id'],
+                'name': employee['name'],
+                'email': employee['email'],
+                'role': {
+                  'id': employee['role_id'], // 将 role_id 转换为 role 对象
+                  'name': _roleHierarchy[employee['role_id']] ?? '未知角色'
+                },
+                'team': {
+                  'id': employee['team_id'],
+                  'name': employee['team_id'] == 1 ? '研发团队' :
+                  employee['team_id'] == 2 ? '运维团队' : '未知团队'
+                }
+              };
+            }).toList();
+
+            // 过滤可分配的员工
+            employeeList = employeeList.where((employee) {
+              final employeeRoleId = employee['role']?['id'];
+              final canAssign = _canAssignToUser(employeeRoleId);
+
+              print('${canAssign ? "✅ 可分配" : "🚫 无权分配"} -> ${employee['name']} (角色ID: $employeeRoleId)');
+
+              return canAssign;
+            }).toList();
+          } else {
+            print('⚠️ 员工接口返回格式异常: 未找到 list 字段');
           }
-        ];
+        } else {
+          print('⚠️ 员工接口返回格式异常: 未找到 data 字段');
+        }
+      } else {
+        print('❌ 获取员工列表失败: ${assigneesResponse.statusCode}');
+        print('响应体: ${utf8.decode(assigneesResponse.bodyBytes)}');
       }
 
       setState(() {
         _employees = employeeList;
+        // 提取部门列表
         _departments = _employees
-            .map((e) => e['department']?.toString() ?? '未分配部门')
+            .map((e) => e['team']?['name']?.toString() ?? '未分配团队')
             .where((d) => d.isNotEmpty)
             .toSet()
             .toList();
         _departments.sort();
       });
 
-      print('✅ 成功加载 ${_employees.length} 名员工，${_departments.length} 个部门');
+      print('✅ 成功加载 ${_employees.length} 名可分配员工，${_departments.length} 个部门');
 
-    } catch (e) {
+    } catch (e, stack) {
       _showError('网络请求出错：$e');
-      print('错误详情: $e');
+      print('💥 详细错误: $e\n$stack');
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+
+  /// 检查当前用户是否可以分配给目标用户
+  bool _canAssignToUser(int? targetUserRoleId) {
+    if (_currentUserRoleId == null || targetUserRoleId == null) {
+      return false;
+    }
+
+    // 数字越小权限越高
+    final currentUserLevel = _roleLevels[_currentUserRoleId] ?? 999;
+    final targetUserLevel = _roleLevels[targetUserRoleId] ?? 999;
+
+    // 只能分配给级别比自己低或相等的用户（数字越大权限越低）
+    return currentUserLevel <= targetUserLevel;
+  }
+
+  /// 检查是否可以选择分配给员工
+  bool _canAssignToEmployees() {
+    if (_currentUserRoleId == null) return false;
+
+    // Member 级别 (4) 只能创建自己的任务
+    if (_currentUserRoleId == 4) {
+      return false;
+    }
+
+    // 其他级别可以分配任务
+    return true;
   }
 
   Widget _buildSectionTitle(String title) => Text(
@@ -167,6 +270,65 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     validator: (v) => v == null || v.isEmpty ? '请输入任务内容' : null,
   );
 
+  Widget _buildPrioritySelector() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _buildSectionTitle('任务优先级'),
+      SizedBox(height: 8),
+      Container(
+        decoration: BoxDecoration(
+          color: Color(0xFFFFF8E1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Color(0xFFE0E0E0)),
+        ),
+        child: DropdownButtonFormField<String>(
+          value: _selectedPriority,
+          decoration: InputDecoration(
+            prefixIcon: Icon(Icons.flag, color: _getPriorityColor(_selectedPriority)),
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          ),
+          items: _priorityOptions.map((priority) {
+            return DropdownMenuItem(
+              value: priority,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.circle,
+                    color: _getPriorityColor(priority),
+                    size: 12,
+                  ),
+                  SizedBox(width: 8),
+                  Text(priority),
+                ],
+              ),
+            );
+          }).toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedPriority = value!;
+            });
+          },
+        ),
+      ),
+    ],
+  );
+
+  Color _getPriorityColor(String priority) {
+    switch (priority) {
+      case 'Low':
+        return Colors.green;
+      case 'Medium':
+        return Colors.blue;
+      case 'High':
+        return Colors.orange;
+      case 'Urgent':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
   InputDecoration _inputDecoration(String label, IconData icon) => InputDecoration(
     labelText: label,
     prefixIcon: Icon(icon, color: Color(0xFFFF8C42)),
@@ -175,7 +337,6 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     fillColor: Color(0xFFFFF8E1),
   );
 
-  // 添加缺失的构建方法
   Widget _buildDeadlineField() => InkWell(
     onTap: _selectDeadline,
     child: Container(
@@ -207,46 +368,100 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     ),
   );
 
-  Widget _buildTaskTypeSelector() => Container(
-    decoration: BoxDecoration(
-      color: Color(0xFFFFF8E1),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Color(0xFFE0E0E0)),
-    ),
-    child: Column(
-      children: [
-        RadioListTile<String>(
-          title: Text('给自己创建任务'),
-          value: 'self',
-          groupValue: _taskType,
-          activeColor: Color(0xFFFF8C42),
-          onChanged: (v) => setState(() {
-            _taskType = v!;
-            _selectedEmployeeIds.clear();
-          }),
-        ),
-        Divider(height: 1, color: Color(0xFFE0E0E0)),
-        RadioListTile<String>(
-          title: Text('分配给员工'),
-          value: 'employee',
-          groupValue: _taskType,
-          activeColor: Color(0xFFFF8C42),
-          onChanged: (v) => setState(() => _taskType = v!),
-        ),
-      ],
-    ),
-  );
+  Widget _buildTaskTypeSelector() {
+    final canAssign = _canAssignToEmployees();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Color(0xFFE0E0E0)),
+      ),
+      child: Column(
+        children: [
+          RadioListTile<String>(
+            title: Text('给自己创建任务'),
+            value: 'self',
+            groupValue: _taskType,
+            activeColor: Color(0xFFFF8C42),
+            onChanged: (v) => setState(() {
+              _taskType = v!;
+              _selectedEmployeeIds.clear();
+            }),
+          ),
+          Divider(height: 1, color: Color(0xFFE0E0E0)),
+          RadioListTile<String>(
+            title: !canAssign
+                ? Row(
+              children: [
+                Text('分配给员工'),
+                SizedBox(width: 8),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.orange,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '无权限',
+                    style: TextStyle(color: Colors.white, fontSize: 10),
+                  ),
+                ),
+              ],
+            )
+                : Text('分配给员工'),
+            value: 'employee',
+            groupValue: _taskType,
+            activeColor: canAssign ? Color(0xFFFF8C42) : Colors.grey,
+            onChanged: canAssign ? (v) => setState(() => _taskType = v!) : null,
+          ),
+          if (!canAssign) ...[
+            Divider(height: 1, color: Color(0xFFE0E0E0)),
+            Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                '您的权限级别（$_currentUserRoleName）只能创建自己的任务',
+                style: TextStyle(color: Colors.orange, fontSize: 12),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   Widget _buildEmployeeSelector() {
+    if (!_canAssignToEmployees()) {
+      return Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
+        child: Center(
+          child: Text(
+            '您的权限级别无法分配任务给其他员工',
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+        ),
+      );
+    }
+
+    // 获取团队列表（基于选择的部门）
     final List<String> teams = _employees
-        .where((e) => _selectedDepartment == null || e['department'] == _selectedDepartment)
-        .map((e) => e['team']?.toString() ?? '未分配团队')
+        .where((e) => _selectedDepartment == null ||
+        (e['team']?['name']?.toString() ?? '未分配团队') == _selectedDepartment)
+        .map((e) => e['team']?['name']?.toString() ?? '未分配团队')
         .toSet()
         .toList();
 
+    // 筛选员工
     final filteredEmployees = _employees.where((e) {
-      final matchDept = _selectedDepartment == null || e['department'] == _selectedDepartment;
-      final matchTeam = _selectedTeam == null || e['team'] == _selectedTeam;
+      final matchDept = _selectedDepartment == null ||
+          (e['team']?['name']?.toString() ?? '未分配团队') == _selectedDepartment;
+      final matchTeam = _selectedTeam == null ||
+          (e['team']?['name']?.toString() ?? '未分配团队') == _selectedTeam;
       final matchSearch = e['name']
           .toString()
           .toLowerCase()
@@ -257,16 +472,40 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 显示当前用户权限信息
+        Container(
+          padding: EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue[50],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.blue[100]!),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info, color: Colors.blue, size: 16),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '您的权限: $_currentUserRoleName - 可分配给同级或下级员工',
+                  style: TextStyle(color: Colors.blue[800], fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 16),
+
+        // 部门、团队选择器
         Row(children: [
           Expanded(
             child: DropdownButtonFormField<String>(
               value: _selectedDepartment,
               decoration: InputDecoration(
-                labelText: '部门',
+                labelText: '部门/团队',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
               items: [
-                DropdownMenuItem(value: null, child: Text('全部部门')),
+                DropdownMenuItem(value: null, child: Text('全部部门/团队')),
                 ..._departments
                     .map((d) => DropdownMenuItem(value: d, child: Text(d)))
                     .toList(),
@@ -282,7 +521,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
             child: DropdownButtonFormField<String>(
               value: _selectedTeam,
               decoration: InputDecoration(
-                labelText: '团队',
+                labelText: '团队筛选',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
               items: [
@@ -294,6 +533,8 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
           ),
         ]),
         SizedBox(height: 16),
+
+        // 搜索框
         TextFormField(
           controller: _searchController,
           decoration: InputDecoration(
@@ -313,7 +554,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
           Wrap(
             spacing: 8,
             children: _selectedEmployeeIds.map((id) {
-              final employee = _employees.firstWhere((e) => e['id'] == id);
+              final employee = _employees.firstWhere((e) => e['user_id'] == id);
               return Chip(
                 label: Text(employee['name'] ?? ''),
                 deleteIcon: Icon(Icons.close, size: 16),
@@ -324,28 +565,33 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
           SizedBox(height: 16),
         ],
 
+        // 员工列表
         Container(
           height: 200,
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey.shade300),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: ListView.builder(
+          child: filteredEmployees.isEmpty
+              ? Center(child: Text('没有可分配的员工'))
+              : ListView.builder(
             itemCount: filteredEmployees.length,
             itemBuilder: (_, i) {
               final e = filteredEmployees[i];
-              final isSelected = _selectedEmployeeIds.contains(e['id']);
+              final isSelected = _selectedEmployeeIds.contains(e['user_id']);
+              final employeeRoleName = e['role']?['name'] ?? '未知角色';
+              final teamName = e['team']?['name'] ?? '未分配团队';
 
               return CheckboxListTile(
                 title: Text(e['name'] ?? '未知姓名'),
-                subtitle: Text('${e['department'] ?? '未分配部门'} - ${e['team'] ?? '未分配团队'}'),
+                subtitle: Text('$teamName - $employeeRoleName'),
                 value: isSelected,
                 onChanged: (selected) {
                   setState(() {
                     if (selected == true) {
-                      _selectedEmployeeIds.add(e['id']);
+                      _selectedEmployeeIds.add(e['user_id']);
                     } else {
-                      _selectedEmployeeIds.remove(e['id']);
+                      _selectedEmployeeIds.remove(e['user_id']);
                     }
                   });
                 },
@@ -471,29 +717,31 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
       return;
     }
 
+    // 权限验证 - 修复字段名问题
+    if (_taskType == 'employee') {
+      for (final employeeId in _selectedEmployeeIds) {
+        final employee = _employees.firstWhere((e) => e['user_id'] == employeeId);
+        final employeeRoleId = employee['role']?['id']; // 修正字段名
+        if (!_canAssignToUser(employeeRoleId)) {
+          _showError('您无权分配给员工: ${employee['name']}');
+          return;
+        }
+      }
+    }
+
     setState(() => _isCreating = true);
 
     try {
-      // 获取当前用户ID
       final userId = await AuthService.getSavedUserId();
-      print('🔍 创建任务时获取的用户ID: $userId');
-
       if (userId == null) {
         _showError('无法获取用户信息，请重新登录');
         return;
       }
 
-      // 准备assigneeIds
       final List<int> assigneeIds = _taskType == 'self'
-          ? [userId]  // 给自己创建任务
-          : _selectedEmployeeIds; // 分配给选中的员工
+          ? [userId]
+          : _selectedEmployeeIds;
 
-      print('🎯 任务分配信息:');
-      print('  任务类型: $_taskType');
-      print('  分配员工IDs: $assigneeIds');
-      print('  当前用户ID: $userId');
-
-      // 调用TaskService创建任务
       final response = await TaskService.createTask(
         userId: userId,
         title: _taskNameController.text.trim(),
@@ -501,10 +749,8 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
         dueAt: _selectedDeadline!,
         tags: _selectedTags,
         assigneeIds: assigneeIds,
-        priority: "Medium",
+        priority: _selectedPriority,
       );
-
-      print('📥 创建任务响应: $response');
 
       if (response['ok'] == true) {
         _showSuccess('任务创建成功！');
@@ -556,6 +802,8 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
               _buildTaskNameField(),
               SizedBox(height: 20),
               _buildTaskContentField(),
+              SizedBox(height: 20),
+              _buildPrioritySelector(),
               SizedBox(height: 20),
               _buildDeadlineField(),
               SizedBox(height: 32),

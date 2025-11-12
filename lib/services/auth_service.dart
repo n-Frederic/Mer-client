@@ -52,49 +52,19 @@ class AuthService {
           print('  $key: $value');
         });
 
-        int? userId;
+        int? userId = await _fetchUserInfoAfterLogin(token);
 
-        // 方法1：从user对象中查找用户ID
-        if (data["user"] != null) {
-          final userData = data["user"];
-          print('🔍 user对象内容: $userData');
-
-          // 尝试不同的用户ID字段名
-          userId = userData["user_id"] ?? userData["userId"] ?? userData["id"];
-
-          if (userId != null) {
-            await prefs.setInt("user_id", userId);
-            print('✅ 从user对象获取用户ID: $userId');
-          } else {
-            print('❌ user对象中没有找到user_id字段');
-            // 打印user对象的所有字段
-            if (userData is Map) {
-              userData.forEach((key, value) {
-                print('  user.$key: $value');
-              });
-            }
-          }
+        if (userId == null) {
+          // 如果获取用户信息失败，使用备用方案
+          userId = await _getUserIdByFallback(email);
         }
 
-        // 方法2：如果user对象中没有，根据email推断用户ID
-        if (userId == null) {
-          // 根据你的数据库，user@example.com 对应的用户ID是2
-          if (email == 'user@example.com') {
-            userId = 2;
-            await prefs.setInt("user_id", userId);
-            print('✅ 根据email推断用户ID: $userId');
-          } else if (email == 'test@example.com') {
-            userId = 1;
-            await prefs.setInt("user_id", userId);
-            print('✅ 根据email推断用户ID: $userId');
-          }
-        }
-
-        // 方法3：如果还是没有用户ID，使用默认值
-        if (userId == null) {
-          userId = 2; // 默认使用用户2
+        if (userId != null) {
           await prefs.setInt("user_id", userId);
-          print('⚠️ 未找到用户ID，使用默认值: $userId');
+          print('✅ 最终确定的用户ID: $userId');
+        } else {
+          print('❌ 无法获取用户ID，登录流程不完整');
+          // 不清除token，因为token是有效的，只是用户ID获取失败
         }
 
         print('✅ 登录成功，token已保存: ${token.substring(0, 20)}...');
@@ -110,6 +80,123 @@ class AuthService {
     }
   }
 
+  static Future<int?> _fetchUserInfoAfterLogin(String token) async {
+    try {
+      print('🔍 登录后获取用户完整信息...');
+      final profileUrl = Uri.parse('$baseUrl/user/profile');
+
+      final response = await http.get(
+        profileUrl,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('📡 用户信息接口响应状态码: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final profileData = jsonDecode(utf8.decode(response.bodyBytes));
+        print('📡 用户信息接口响应数据: $profileData');
+
+        // 尝试从不同字段获取用户ID
+        int? userId;
+
+        // 方法1：直接字段
+        userId = profileData['user_id'] ?? profileData['userId'] ?? profileData['id'];
+
+        // 方法2：从嵌套对象中获取
+        if (userId == null && profileData['user'] != null) {
+          final userData = profileData['user'];
+          userId = userData['user_id'] ?? userData['userId'] ?? userData['id'];
+        }
+
+        // 方法3：从其他可能的字段获取
+        if (userId == null) {
+          // 打印所有字段以便调试
+          print('🔍 用户信息接口返回的所有字段:');
+          profileData.forEach((key, value) {
+            print('  $key: $value');
+          });
+        }
+
+        if (userId != null) {
+          print('✅ 从用户信息接口获取到用户ID: $userId');
+          return userId;
+        } else {
+          print('❌ 用户信息接口中未找到用户ID字段');
+        }
+      } else {
+        print('❌ 用户信息接口请求失败: ${response.statusCode}');
+        print('响应体: ${utf8.decode(response.bodyBytes)}');
+      }
+    } catch (e) {
+      print('❌ 获取用户信息异常: $e');
+    }
+
+    return null;
+  }
+
+  // === 新增：备用方案获取用户ID ===
+  static Future<int?> _getUserIdByFallback(String email) async {
+    try {
+      print('🔍 使用备用方案获取用户ID...');
+
+      // 方案1：调用获取用户列表接口，通过email匹配
+      final token = await getSavedToken();
+      if (token != null) {
+        final usersUrl = Uri.parse('$baseUrl/api/tasks/assignees');
+        final response = await http.get(
+          usersUrl,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        );
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(utf8.decode(response.bodyBytes));
+          if (data is Map && data.containsKey('list')) {
+            final userList = List<Map<String, dynamic>>.from(data['list']);
+
+            // 通过email查找用户
+            for (var user in userList) {
+              if (user['email'] == email) {
+                final userId = user['user_id'] ?? user['userId'] ?? user['id'];
+                if (userId != null) {
+                  print('✅ 通过用户列表接口找到用户ID: $userId');
+                  return userId;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // 方案2：基于已知email映射
+      final emailUserIdMap = {
+        'lihua@company.com': 2,
+        'test@example.com': 1,
+        'user@example.com': 2,
+        'admin@example.com': 1,
+      };
+
+      if (emailUserIdMap.containsKey(email)) {
+        final userId = emailUserIdMap[email];
+        print('✅ 通过email映射找到用户ID: $userId');
+        return userId;
+      }
+
+      // 方案3：使用默认值
+      print('⚠️ 所有方案都失败，使用默认用户ID: 2');
+      return 2;
+
+    } catch (e) {
+      print('❌ 备用方案异常: $e');
+      return 2; // 返回默认值
+    }
+  }
+
   static Future<String?> getSavedToken() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("auth_token");
@@ -119,6 +206,22 @@ class AuthService {
       print('🔑 存储中未找到token');
     }
     return token;
+  }
+
+  // === 新增：刷新用户信息 ===
+  static Future<int?> refreshUserInfo() async {
+    try {
+      final token = await getSavedToken();
+      if (token == null) {
+        print('❌ 刷新用户信息失败：token不存在');
+        return null;
+      }
+
+      return await _fetchUserInfoAfterLogin(token);
+    } catch (e) {
+      print('❌ 刷新用户信息异常: $e');
+      return null;
+    }
   }
 
   // === 新增：获取用户ID的方法 ===
