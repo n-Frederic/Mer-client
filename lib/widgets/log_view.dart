@@ -250,7 +250,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
           borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               label,
