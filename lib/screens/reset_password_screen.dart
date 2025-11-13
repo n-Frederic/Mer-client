@@ -137,7 +137,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // --- 【⬇️ 新增：AppBar ⬇️】 ---
       appBar: AppBar(
         // 使 AppBar 透明
         backgroundColor: Colors.transparent,
@@ -148,9 +147,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      // --- 【⬆️ 新增结束 ⬆️】 ---
 
-      // --- 【新增：让 body 延伸到 AppBar 后面】 ---
       extendBodyBehindAppBar: true,
 
       body: Container(
@@ -202,7 +199,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
                             key: _formKey,
                             child: Column(
                               children: [
-                                // --- 【⬇️ 3个新字段 ⬇️】 ---
                                 TextFormField(
                                   controller: _emailController, // 自动填充
                                   decoration: InputDecoration(
@@ -284,13 +280,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
                                     if (value?.isEmpty ?? true) {
                                       return '请输入新密码';
                                     }
-                                    if (value!.length < 6) {
-                                      return '密码至少需要6位';
+                                    if (value!.length < 8) {
+                                      return '密码至少需要8位';
                                     }
                                     return null;
                                   },
                                 ),
-                                // --- 【⬆️ 新字段结束 ⬆️】 ---
                                 SizedBox(height: 32),
                                 SizedBox(
                                   width: double.infinity,
