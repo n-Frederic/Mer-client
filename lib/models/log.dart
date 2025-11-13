@@ -1,6 +1,21 @@
 // lib/models/log.dart
 import 'dart:convert';
 
+class RelatedTask {
+  final int taskId;
+  final String title;
+
+  RelatedTask({required this.taskId, required this.title});
+
+  factory RelatedTask.fromJson(Map<String, dynamic> json) {
+    return RelatedTask(
+      // 确保从正确的键名 "task_id" 和 "title" 读取
+      taskId: json['task_id'] as int,
+      title: json['title'] as String? ?? '无标题任务',
+    );
+  }
+}
+
 class Log {
   final String logId;
   final String userId;
@@ -12,7 +27,8 @@ class Log {
   final String? helpNeeded;
   final String? status;
 
-  final List<String> tags; // <-- 【修正】重新添加 tags 字段
+  final List<String> tags;
+  final List<RelatedTask> relatedTasks;
 
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -26,7 +42,8 @@ class Log {
     this.tomorrowPlan,
     this.helpNeeded,
     this.status,
-    this.tags = const [], // <-- 【修正】
+    this.tags = const [],
+    required this.relatedTasks,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -80,6 +97,9 @@ class Log {
       tags: (json['tags'] as List<dynamic>?)
           ?.map((t) => t.toString())
           .toList() ?? [],
+      relatedTasks: (json['related_tasks'] as List? ?? [])
+        .map((taskJson) => RelatedTask.fromJson(taskJson as Map<String, dynamic>))
+        .toList(),
     );
   }
 }

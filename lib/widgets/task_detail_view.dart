@@ -217,7 +217,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
       helpNeeded: null,
       status: '待审批',
       tags: ['任务', '汇报'],
-      taskIds: [loadedTask.taskId], // 【修正】taskId 已经是 String，不需要 toString()
+      taskIds: [loadedTask.taskId], relatedTasks: [],
     );
 
     return Column(

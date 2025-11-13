@@ -21,8 +21,6 @@ class _LogDetailViewState extends State<LogDetailView> {
   @override
   void initState() {
     super.initState();
-    // 【新增】调用 API 获取作者信息
-    // (我们使用您已有的 ProfileService.fetchUserById)
     _authorFuture = ProfileService.fetchUserById(widget.log.userId);
   }
 
@@ -30,22 +28,24 @@ class _LogDetailViewState extends State<LogDetailView> {
 
   Color _getStatusColor(String? status) {
     switch (status) {
-      case '已通过': return Color(0xFF4ECDC4);
-      case '待审批': return Color(0xFFFFE66D);
-      case '已拒绝': return Color(0xFFFF6B9D);
-      default: return Color(0xFF999999);
+      case '已通过':
+        return Color(0xFF4ECDC4);
+      case '已拒绝':
+        return Color(0xFFFF6B9D);
+      default:
+        return Color(0xFF999999);
     }
   }
 
   String _formatDate(DateTime date) {
     // 详情页我们显示完整日期
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day
+        .toString().padLeft(2, '0')}';
   }
 
 
   @override
   Widget build(BuildContext context) {
-    // 【修改】直接从 widget.log 获取强类型数据
     final log = widget.log;
 
     return Scaffold(
@@ -90,12 +90,12 @@ class _LogDetailViewState extends State<LogDetailView> {
                     child: FutureBuilder<Map<String, dynamic>>(
                       future: _authorFuture,
                       builder: (context, snapshot) {
-
                         // (根据 ProfileService.fetchUserById 的 Map<String, dynamic> 响应)
                         final authorData = snapshot.data;
 
                         final authorName = authorData?['name'] ?? '加载中...';
-                        final authorAvatar = (authorData?['username'] as String?)?.substring(0, 1) ?? '👤';
+                        final authorAvatar = (authorData?['username'] as String?)
+                            ?.substring(0, 1) ?? '👤';
 
                         return Row(
                           children: [
@@ -107,7 +107,8 @@ class _LogDetailViewState extends State<LogDetailView> {
                                 children: [
                                   Text(
                                     // 【修改】使用 todaySummary
-                                    log.todaySummary ?? '日志 (ID: ${log.logId})',
+                                    log.todaySummary ??
+                                        '日志 (ID: ${log.logId})',
                                     style: TextStyle(
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold,
@@ -150,7 +151,6 @@ class _LogDetailViewState extends State<LogDetailView> {
               ),
               SizedBox(height: 20),
 
-              // --- 【修改】显示三个新字段 (替换旧的 'content') ---
               _buildDetailSection(
                   '今日总结',
                   log.todaySummary,
@@ -171,32 +171,34 @@ class _LogDetailViewState extends State<LogDetailView> {
 
               SizedBox(height: 16),
 
-              // --- 【修改】显示 Tags (使用 log.tags) ---
               if (log.tags.isNotEmpty)
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: log.tags
-                      .map((tag) => Container(
-                    padding:
-                    EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Color(0xFFFF8C42), Color(0xFFFFE66D)],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      tag,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ))
+                      .map((tag) =>
+                      Container(
+                        padding:
+                        EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Color(0xFFFF8C42), Color(0xFFFFE66D)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          tag,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ))
                       .toList(),
                 ),
+              SizedBox(height: 16),
+              _buildRelatedTasks(log.relatedTasks),
             ],
           ),
         ),
@@ -237,9 +239,103 @@ class _LogDetailViewState extends State<LogDetailView> {
             (content != null && content.isNotEmpty) ? content : '未填写',
             style: TextStyle(
               fontSize: 15,
-              color: (content != null && content.isNotEmpty) ? Color(0xFF333333) : Colors.grey,
+              color: (content != null && content.isNotEmpty)
+                  ? Color(0xFF333333)
+                  : Colors.grey,
               height: 1.5,
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRelatedTasks(List<RelatedTask> tasks) {
+    // 如果没有关联任务，不显示任何东西
+    if (tasks.isEmpty) {
+      return SizedBox.shrink(); // 返回一个空的小部件
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 1. 标题
+        Text(
+          '关联的任务',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF333333),
+          ),
+        ),
+        SizedBox(height: 8),
+
+        // 2. 任务卡片列表
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          // 使用 ListView.builder 构造列表
+          child: ListView.separated(
+            // 【重要】收缩并禁用滚动，因为它在 SingleChildScrollView 内部
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+
+            itemCount: tasks.length,
+            itemBuilder: (context, index) {
+              final task = tasks[index];
+              return ListTile(
+                leading: Icon(Icons.task_alt, color: Color(0xFFFF8C42)),
+                title: Text(
+                    task.title, style: TextStyle(fontWeight: FontWeight.w500)),
+                trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                onTap: () {
+                  // 【核心】点击时跳转到任务详情页
+                  print('点击了任务 ID: ${task.taskId}');
+
+                  // TODO: 导航到 TaskDetailView
+                  //
+                  // 导航目前被阻塞，因为：
+                  // 1. 我们没有导入 'task_detail_view.dart' (需要添加 import)。
+                  // 2. TaskDetailView (根据你之前的文件) 需要 userRole, onTaskUpdated,
+                  //    和 currentUserId，但 LogDetailView 没有这些数据。
+                  //
+                  // 导航需要 TaskDetailView 被重构为只接收 taskId。
+
+                  // Navigator.push(
+                  //   context,
+                  //   MaterialPageRoute(
+                  //     builder: (context) => TaskDetailView(
+                  //       taskId: task.taskId.toString(),
+                  //       // ❌ 错误：我们没有这些数据
+                  //       // userRole: ???,
+                  //       // onTaskUpdated: ???,
+                  //       // currentUserId: ???,
+                  //     ),
+                  //   ),
+                  // );
+                },
+              );
+            },
+            separatorBuilder: (context, index) =>
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  indent: 16,
+                  endIndent: 16,
+                  color: Colors.grey[100],
+                ),
           ),
         ),
       ],
