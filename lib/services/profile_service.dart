@@ -95,22 +95,19 @@ class ProfileService {
 
       print('ProfileService: [fetchUserById] 获取用户详情 (ID: $userId)...');
       final response = await http.get(
-        // 显式添加 /user
         Uri.parse('$baseUrl/user/$userId'),
         headers: headers,
       );
 
-      print('ProfileService: [fetchUserById] 用户详情响应状态码: ${response.statusCode}');
+      final String jsonString = utf8.decode(response.bodyBytes);
+      print('ProfileService: [fetchUserById] 原始 JSON 响应: $jsonString');
 
       if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
-        if (data['ok'] == true && data.containsKey('user')) {
-          print('ProfileService: [fetchUserById] 获取用户 (ID: $userId) 成功');
-          // 你的 log_view_detail.dart 期望 snapshot.data?['user']
-          return data;
-        } else {
-          throw Exception(data['error'] ?? '无法解析用户数据');
-        }
+        final data = json.decode(jsonString);
+
+        print('ProfileService: [fetchUserById] 获取用户 (ID: $userId) 成功');
+        return data;
+
       } else if (response.statusCode == 401) {
         throw Exception('用户认证失败，请重新登录');
       } else {
@@ -189,17 +186,12 @@ class ProfileService {
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
 
-        // --- 【⬇️ 关键修复 ⬇️】 ---
-        // (根据你提供的 JSON，我们必须检查 'ok' 和 'data' 键)
         if (data['ok'] == true && data.containsKey('data')) {
           print('ProfileService: [fetchDepartments] 获取部门列表成功');
-          // ( 'data' 键本身就是列表 )
           return data['data'] as List<dynamic>;
         } else {
-          // (如果 'ok' 或 'data' 键不存在，则抛出此错误)
           throw Exception('获取部门列表失败: ${data['message'] ?? '响应格式错误'}');
         }
-        // --- 【⬆️ 修复结束 ⬆️】 ---
 
       } else {
         throw Exception('获取部门列表失败，服务器响应码: ${response.statusCode}');

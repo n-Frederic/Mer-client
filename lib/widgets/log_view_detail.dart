@@ -39,7 +39,6 @@ class _LogDetailViewState extends State<LogDetailView> {
   }
 
   String _formatDate(DateTime date) {
-    // 详情页我们显示完整日期
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
@@ -64,18 +63,15 @@ class _LogDetailViewState extends State<LogDetailView> {
         ),
       ),
       body: Container(
-        color: Color(0xFFFBF5C0),
-
+        color: Colors.transparent,
         child: FutureBuilder<Log>(
           future: _logFuture, // (在 initState 中设置)
           builder: (context, snapshot) {
 
-            // 1. 加载中
             if (snapshot.connectionState == ConnectionState.waiting) {
               return Center(child: CircularProgressIndicator());
             }
 
-            // 2. 加载失败
             if (snapshot.hasError) {
               return Center(
                 child: Padding(
@@ -85,17 +81,12 @@ class _LogDetailViewState extends State<LogDetailView> {
               );
             }
 
-            // 3. 没有数据
             if (!snapshot.hasData) {
               return Center(child: Text('未找到日志'));
             }
 
-            // 4. 成功！
-            // 【修改】从 snapshot (而不是 widget) 获取强类型数据
             final log = snapshot.data!;
 
-            // --- 这是你之前 build 方法的全部内容 ---
-            // --- 现在它在 FutureBuilder 内部 ---
             return SingleChildScrollView(
               padding: EdgeInsets.all(20),
               child: Column(
@@ -114,40 +105,29 @@ class _LogDetailViewState extends State<LogDetailView> {
                             String authorAvatar = '👤';
 
                             if (authorSnapshot.hasData) {
-                              // (根据 ProfileService.fetchUserById 的 Map<String, dynamic> 响应)
-                              // (我们假设它返回 { 'user': ... })
-                              final authorData = authorSnapshot.data?['user'];
+                              final authorData = authorSnapshot.data;
                               authorName = authorData?['name'] ?? '未知作者';
-                              authorAvatar = (authorData?['username'] as String?)?.substring(0, 1) ?? '👤';
+
                             } else if (authorSnapshot.hasError) {
                               authorName = '作者加载失败';
                             }
-
-                            return Row(
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(authorAvatar, style: TextStyle(fontSize: 24)),
-                                SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        log.todaySummary ?? '日志 (ID: ${log.logId})',
-                                        style: TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF333333),
-                                        ),
-                                      ),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        '$authorName · ${_formatDate(log.logDate)}',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Color(0xFF666666),
-                                        ),
-                                      ),
-                                    ],
+                                Text(
+                                  log.todaySummary ?? '日志 (ID: ${log.logId})',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF333333),
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  '$authorName · ${_formatDate(log.logDate)}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF666666),
                                   ),
                                 ),
                               ],

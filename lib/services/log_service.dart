@@ -28,6 +28,7 @@ class LogService {
     List<String>? memberIds,
     String? timeFilter,
     String? keyword,
+    List<String>? tags,
     int page = 1,
     int pageSize = 10,
   }) async {
@@ -49,6 +50,9 @@ class LogService {
     }
     if (keyword != null && keyword.isNotEmpty) {
       params['keyword'] = keyword;
+    }
+    if (tags != null && tags.isNotEmpty) {
+      params['tags'] = tags.join(',');
     }
 
     final uri = Uri.parse('$baseUrl/journals/scoped').replace(queryParameters: params);

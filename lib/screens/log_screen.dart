@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import '../widgets/bottom_navigation.dart';
-import '../models/log_entry.dart';
 
 class LogScreen extends StatelessWidget {
   @override

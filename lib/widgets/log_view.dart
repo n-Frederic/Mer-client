@@ -20,6 +20,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
   Map<String, User> _userCache = {};
   late Future<Map<String, dynamic>> _profileFuture;
   late Future<LogListResponse> _logsFuture;
+  List<String> _searchTags = [];
   
   Map<String, dynamic> _currentUser = {
     'name': '加载中...',
@@ -75,6 +76,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
       mode: _selectedMode,
       timeFilter: _selectedTimeFilter,
       keyword: _searchTerm,
+      tags: _searchTags,
       memberIds: _selectedMode == 'member' ? _selectedMembers.toList() : null,
     );
   }
@@ -82,7 +84,16 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Color(0xFFFFF8E1),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFFFF8E1),
+            Color(0xFFFFE66D).withOpacity(0.3),
+          ],
+        ),
+      ),
       child: Column(
         children: [
           Container(
@@ -136,7 +147,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                         ],
                       ),
                     ),
-                    // 在这里添加搜索框
+                    // 搜索框
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
@@ -145,11 +156,30 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                         ),
                         child: TextField(
                           onChanged: (value) {
+                            final List<String> tags = [];
+                            final List<String> keywords = [];
+                            final parts = value.split(' ');
+
+                            for (final part in parts) {
+                              if (part.startsWith('#') && part.length > 1) {
+                                // 是标签
+                                tags.add(part.substring(1));
+                              } else if (part.isNotEmpty) {
+                                // 是普通关键词
+                                keywords.add(part);
+                              }
+                            }
+
+                            // 更新状态变量
+                            _searchTerm = keywords.join(' ');
+                            _searchTags = tags;
+
+                            // 触发 API 调用
                             setState(() {
-                              _searchTerm = value;
                               _logsFuture = _fetchLogs();
                             });
                           },
+                          
                           decoration: InputDecoration(
                             hintText: '搜索日志...',
                             hintStyle:
