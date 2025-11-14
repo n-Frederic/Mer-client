@@ -179,7 +179,6 @@ class ProfileService {
   static Future<List<dynamic>> fetchDepartments() async {
     try {
       final headers = await _getAuthHeaders();
-
       final uri = Uri.parse('$baseUrl/department');
 
       print('ProfileService: [fetchDepartments] 获取部门列表...');
@@ -190,7 +189,9 @@ class ProfileService {
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
 
-          if (data['ok'] == true && data.containsKey('data')) {
+        // --- 【⬇️ 关键修复 ⬇️】 ---
+        // (根据你提供的 JSON，我们必须检查 'ok' 和 'data' 键)
+        if (data['ok'] == true && data.containsKey('data')) {
           print('ProfileService: [fetchDepartments] 获取部门列表成功');
           // ( 'data' 键本身就是列表 )
           return data['data'] as List<dynamic>;
@@ -198,6 +199,8 @@ class ProfileService {
           // (如果 'ok' 或 'data' 键不存在，则抛出此错误)
           throw Exception('获取部门列表失败: ${data['message'] ?? '响应格式错误'}');
         }
+        // --- 【⬆️ 修复结束 ⬆️】 ---
+
       } else {
         throw Exception('获取部门列表失败，服务器响应码: ${response.statusCode}');
       }
