@@ -155,7 +155,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
         final data = jsonDecode(utf8.decode(assigneesResponse.bodyBytes));
         print('📡 员工列表响应数据: $data');
 
-        // === 修复：根据实际数据结构调整 ===
+        // === 修复：直接使用原始数据结构，不要转换 ===
         if (data is Map && data.containsKey('data') && data['data'] is Map) {
           final dataMap = data['data'];
           if (dataMap.containsKey('list')) {
@@ -163,34 +163,21 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
 
             print('👥 员工原始列表长度: ${employeeList.length}');
 
-            // 转换数据结构以匹配代码期望的格式
-            employeeList = employeeList.map((employee) {
-              // 将 id 转换为 user_id，role_id 转换为 role
-              return {
-                'user_id': employee['id'],
-                'name': employee['name'],
-                'email': employee['email'],
-                'role': {
-                  'id': employee['role_id'], // 将 role_id 转换为 role 对象
-                  'name': _roleHierarchy[employee['role_id']] ?? '未知角色'
-                },
-                'team': {
-                  'id': employee['team_id'],
-                  'name': employee['team_id'] == 1 ? '研发团队' :
-                  employee['team_id'] == 2 ? '运维团队' : '未知团队'
-                }
-              };
-            }).toList();
+            // 调试：打印原始员工数据
+            for (var employee in employeeList) {
+              final roleId = employee['role']?['role_id'];
+              final name = employee['name'];
+              print('🔍 原始员工数据: $name - 角色ID: $roleId');
+            }
 
-            // 过滤可分配的员工
-            employeeList = employeeList.where((employee) {
-              final employeeRoleId = employee['role']?['id'];
-              final canAssign = _canAssignToUser(employeeRoleId);
-
-              print('${canAssign ? "✅ 可分配" : "🚫 无权分配"} -> ${employee['name']} (角色ID: $employeeRoleId)');
-
-              return canAssign;
-            }).toList();
+            // 直接使用原始数据，不需要转换
+            // 原始数据结构已经是正确的：
+            // {
+            //   'user_id': 16,
+            //   'name': 'Liu Fang',
+            //   'role': {'role_id': 4, 'name': 'Member'},
+            //   'team': {'team_id': 1, 'name': 'Platform'}
+            // }
           } else {
             print('⚠️ 员工接口返回格式异常: 未找到 list 字段');
           }
@@ -202,8 +189,18 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
         print('响应体: ${utf8.decode(assigneesResponse.bodyBytes)}');
       }
 
+      // 过滤可分配的员工
+      final filteredEmployees = employeeList.where((employee) {
+        final employeeRoleId = employee['role']?['role_id']; // 使用正确的字段名
+        final canAssign = _canAssignToUser(employeeRoleId);
+
+        print('${canAssign ? "✅ 可分配" : "🚫 无权分配"} -> ${employee['name']} (角色ID: $employeeRoleId)');
+
+        return canAssign;
+      }).toList();
+
       setState(() {
-        _employees = employeeList;
+        _employees = filteredEmployees;
         // 提取部门列表
         _departments = _employees
             .map((e) => e['team']?['name']?.toString() ?? '未分配团队')
@@ -223,32 +220,35 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     }
   }
 
-
   /// 检查当前用户是否可以分配给目标用户
-  bool _canAssignToUser(int? targetUserRoleId) {
-    if (_currentUserRoleId == null || targetUserRoleId == null) {
+  bool _canAssignToUser(int? targetRoleId) {
+
+    if (targetRoleId == null) {
+      print('⚠️ 目标角色ID为null');
       return false;
     }
 
-    // 数字越小权限越高
-    final currentUserLevel = _roleLevels[_currentUserRoleId] ?? 999;
-    final targetUserLevel = _roleLevels[targetUserRoleId] ?? 999;
+    print('🔍 权限检查: 当前用户角色ID=$_currentUserRoleId, 目标角色ID=$targetRoleId');
 
-    // 只能分配给级别比自己低或相等的用户（数字越大权限越低）
-    return currentUserLevel <= targetUserLevel;
+    // 管理员可以分配给任何人
+    if (_currentUserRoleId == 1) return true;
+
+    // 经理可以分配给经理、团队领导和成员
+    if (_currentUserRoleId == 2) {
+      return targetRoleId == 2 || targetRoleId == 3 || targetRoleId == 4;
+    }
+
+    // 团队领导只能分配给成员
+    if (_currentUserRoleId == 3) {
+      return targetRoleId == 4;
+    }
+
+    return false;
   }
 
   /// 检查是否可以选择分配给员工
   bool _canAssignToEmployees() {
-    if (_currentUserRoleId == null) return false;
-
-    // Member 级别 (4) 只能创建自己的任务
-    if (_currentUserRoleId == 4) {
-      return false;
-    }
-
-    // 其他级别可以分配任务
-    return true;
+    return _currentUserRoleId == 1 || _currentUserRoleId == 2 || _currentUserRoleId == 3;
   }
 
   Widget _buildSectionTitle(String title) => Text(
@@ -580,6 +580,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
               final e = filteredEmployees[i];
               final isSelected = _selectedEmployeeIds.contains(e['user_id']);
               final employeeRoleName = e['role']?['name'] ?? '未知角色';
+              final employeeRoleId = e['role']?['role_id'];
               final teamName = e['team']?['name'] ?? '未分配团队';
 
               return CheckboxListTile(
@@ -721,7 +722,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     if (_taskType == 'employee') {
       for (final employeeId in _selectedEmployeeIds) {
         final employee = _employees.firstWhere((e) => e['user_id'] == employeeId);
-        final employeeRoleId = employee['role']?['id']; // 修正字段名
+        final employeeRoleId = employee['role']?['role_id'];  // 修正字段名
         if (!_canAssignToUser(employeeRoleId)) {
           _showError('您无权分配给员工: ${employee['name']}');
           return;

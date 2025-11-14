@@ -5,23 +5,23 @@ import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:io';
 import '../models/task.dart';
+import '../models/task_report.dart';
 import '../models/role.dart';
 import 'log_view_detail.dart';
 import '../services/task_service.dart';
 import '../services/auth_service.dart';
 
-
 class TaskDetailView extends StatefulWidget {
   final String taskId;
   final Role userRole;
   final Function(Task) onTaskUpdated;
-  final String currentUserId; // 【新增】当前登录用户ID
+  final String currentUserId;
 
   TaskDetailView({
     required this.taskId,
     required this.userRole,
     required this.onTaskUpdated,
-    required this.currentUserId, // 【新增】
+    required this.currentUserId,
   });
 
   @override
@@ -30,11 +30,53 @@ class TaskDetailView extends StatefulWidget {
 
 class _TaskDetailViewState extends State<TaskDetailView> {
   late Future<Task> _taskFuture;
+  List<TaskReport> _taskReports = [];
+  bool _isLoadingReports = false;
+  // 任务分配人员相关状态
+  Map<String, dynamic>? _taskAssignees;
+  bool _isLoadingAssignees = false;
 
   @override
   void initState() {
     super.initState();
     _taskFuture = TaskService.fetchTaskById(widget.taskId);
+    Future.microtask(() => _loadTaskReports());
+  }
+
+  // 加载任务报告
+  Future<void> _loadTaskReports() async {
+    if (mounted) {
+      setState(() {
+        _isLoadingReports = true;
+      });
+    }
+
+    try {
+      final reports = await TaskService.fetchTaskReports(widget.taskId);
+
+      if (mounted) {
+        setState(() {
+          _taskReports = reports;
+          _isLoadingReports = false;
+        });
+      }
+    } catch (e) {
+      print('加载任务报告失败: $e');
+      if (mounted) {
+        setState(() {
+          _taskReports = [];
+          _isLoadingReports = false;
+        });
+      }
+    }
+  }
+  // 刷新所有数据
+  Future<void> _refreshData() async {
+    setState(() {
+      _taskFuture = TaskService.fetchTaskById(widget.taskId);
+      _isLoadingReports = true;
+    });
+    await _loadTaskReports();
   }
 
   @override
@@ -69,41 +111,37 @@ class _TaskDetailViewState extends State<TaskDetailView> {
           if (snapshot.hasData) {
             final Task loadedTask = snapshot.data!;
 
-            // 在 build 方法内部定义占位符
             final Map<String, dynamic> _dynamicProperties = {
               'emoji': '📝',
-              'progress': 0.0,
+              'progress': _calculateProgress(loadedTask),
               'log': '暂无日志',
-              'assignedTo': loadedTask.creator?.userId??'未知',
+              'assignedTo': loadedTask.creator?.userId ?? '未知',
               'subtasks': [],
-              'checkIns': [],
               'collaborators': ['N/A'],
             };
 
-            return SingleChildScrollView(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTaskInfo(loadedTask, _dynamicProperties),
-                  SizedBox(height: 20),
-                  _buildTaskDetailsList(loadedTask),
-                  SizedBox(height: 20),
-                  _buildSubtasks(loadedTask, _dynamicProperties),
-                  SizedBox(height: 20),
-                  _buildCollaborators(_dynamicProperties),
-                  SizedBox(height: 20),
-                  _buildTaskLog(loadedTask, _dynamicProperties),
-                  SizedBox(height: 20),
-                  // 【修改】移除 currentUserId 检查，使用其他方式判断是否可以写日志
-                  if (_canWriteLog(loadedTask))
-                    Center(
-                      child: ElevatedButton(
-                        onPressed: () => _handleCheckIn(loadedTask),
-                        child: Text('写日志'),
-                      ),
-                    ),
-                ],
+            return RefreshIndicator(
+              onRefresh: _refreshData,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildTaskInfo(loadedTask, _dynamicProperties),
+                    SizedBox(height: 20),
+                    _buildTaskDetailsList(loadedTask),
+                    SizedBox(height: 20),
+                    _buildSubtasks(loadedTask, _dynamicProperties),
+                    SizedBox(height: 20),
+                    _buildCollaborators(_dynamicProperties),
+                    SizedBox(height: 20),
+                    _buildTaskLog(loadedTask, _dynamicProperties),
+                    SizedBox(height: 20),
+                    // 显示报告相关部分
+                    _buildReportSection(loadedTask),
+                    SizedBox(height: 20),
+                  ],
+                ),
               ),
             );
           }
@@ -114,12 +152,159 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     );
   }
 
-  // 【新增】判断是否可以写日志的方法
-  bool _canWriteLog(Task task) {
-    // 这里可以根据任务状态、用户角色等逻辑来判断
-    // 例如：只有进行中、已分配状态的任务可以写日志
-    return task.status == TaskStatus.inProgress ||
-        task.status == TaskStatus.assigned;
+  // 计算任务进度
+  double _calculateProgress(Task task) {
+    switch (task.status) {
+      case TaskStatus.published:
+        return 0.25;
+      case TaskStatus.assigned:
+        return 0.5;
+      case TaskStatus.inProgress:
+        return 0.6;
+      case TaskStatus.reported:
+        return 0.75;
+      case TaskStatus.completed:
+        return 1.0;
+      case TaskStatus.closed:
+        return 1.0;
+      default:
+        return 0.0;
+    }
+  }
+
+  // 报告部分显示逻辑
+  Widget _buildReportSection(Task task) {
+    if (task.status == TaskStatus.published) {
+      // 任务发布状态 - 显示提交报告按钮
+      return Center(
+        child: ElevatedButton(
+          onPressed: () => _handleReport(task),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Color(0xFFFF8C42),
+            foregroundColor: Colors.white,
+            padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(25),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.assignment_turned_in, size: 20),
+              SizedBox(width: 8),
+              Text('提交工作报告', style: TextStyle(fontSize: 16)),
+            ],
+          ),
+        ),
+      );
+    } else {
+      // 其他状态 - 显示报告信息
+      return _buildReportInfo();
+    }
+  }
+
+  // 报告信息查看组件
+  Widget _buildReportInfo() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              '工作报告',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF333333)),
+            ),
+            SizedBox(width: 8),
+            if (_isLoadingReports)
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+          ],
+        ),
+        SizedBox(height: 12),
+        Card(
+          elevation: 4,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: _isLoadingReports
+                ? Center(child: CircularProgressIndicator())
+                : _taskReports.isEmpty
+                ? Column(
+              children: [
+                Icon(Icons.assignment_outlined,
+                    size: 48, color: Colors.grey[400]),
+                SizedBox(height: 8),
+                Text(
+                  '暂无工作报告',
+                  style: TextStyle(color: Color(0xFF666666)),
+                ),
+              ],
+            )
+                : Column(
+              children: _taskReports.map((report) => _buildReportItem(report)).toList(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 单个报告信息项
+  Widget _buildReportItem(TaskReport report) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.access_time, size: 16, color: Colors.grey),
+              SizedBox(width: 4),
+              Text(
+                _formatReportTime(report.createdAt),
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              Spacer(),
+              if (report.attachments.isNotEmpty)
+                Icon(Icons.photo_camera, size: 16, color: Colors.green),
+              SizedBox(width: 4),
+              Icon(Icons.location_on, size: 16, color: Colors.blue),
+            ],
+          ),
+          SizedBox(height: 8),
+          if (report.content.isNotEmpty)
+            Text(
+              report.content,
+              style: TextStyle(fontSize: 14, color: Color(0xFF666666)),
+            ),
+          SizedBox(height: 4),
+          Text(
+            '位置: ${report.address}',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          if (report.attachments.isNotEmpty) ...[
+            SizedBox(height: 8),
+            Text(
+              '附件: ${report.attachments.length} 个文件',
+              style: TextStyle(fontSize: 12, color: Colors.blue),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // 格式化报告时间
+  String _formatReportTime(DateTime timestamp) {
+    return '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')} ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
   }
 
   Widget _buildTaskInfo(Task loadedTask, Map<String, dynamic> dynamicProperties) {
@@ -167,9 +352,8 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.9), height: 1.5),
             ),
             SizedBox(height: 12),
-            Wrap(
-              spacing: 8.0,
-              runSpacing: 4.0,
+            // 显示当前任务状态
+            Row(
               children: [
                 Chip(
                   label: Text(
@@ -177,6 +361,13 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                     style: TextStyle(color: Colors.white, fontSize: 12),
                   ),
                   backgroundColor: _getStatusColor(loadedTask.status),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '当前状态: ${_getStatusDescription(loadedTask.status)}',
+                    style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.9)),
+                  ),
                 ),
               ],
             ),
@@ -197,18 +388,33 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     );
   }
 
-   Widget _buildTaskLog(Task loadedTask, Map<String, dynamic> dynamicProperties) {
-    // 1. 获取核心内容 (保持不变)
-    final String logContent = dynamicProperties['log'] ?? '暂无日志';
+  // 获取状态描述
+  String _getStatusDescription(TaskStatus status) {
+    switch (status) {
+      case TaskStatus.published:
+        return '任务已发布，等待提交报告';
+      case TaskStatus.assigned:
+        return '任务已分配，等待开始';
+      case TaskStatus.inProgress:
+        return '任务进行中';
+      case TaskStatus.reported:
+        return '已提交报告，等待审核';
+      case TaskStatus.completed:
+        return '任务已完成';
+      case TaskStatus.closed:
+        return '任务已关闭';
+      default:
+        return '未知状态';
+    }
+  }
 
-    // 2. 【修正】创建 Log 对象，使用 currentUserId 作为回退
-    // 如果 creator 为 null，使用当前登录用户ID
-    final String logUserId = loadedTask.creator?.userId ?? widget.currentUserId;
-    
-    // taskId 已经是 String 类型，不需要 toString()
+  Widget _buildTaskLog(Task loadedTask, Map<String, dynamic> dynamicProperties) {
+    final String logContent = dynamicProperties['log'] ?? '暂无日志';
+    final String logUserId = loadedTask.creator?.userId.toString() ?? widget.currentUserId;
+
     final Log placeholderLog = Log(
       logId: '0',
-      userId: logUserId, // 【修正】使用回退逻辑
+      userId: logUserId,
       logDate: DateTime.now(),
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
@@ -217,7 +423,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
       helpNeeded: null,
       status: '待审批',
       tags: ['任务', '汇报'],
-      taskIds: [loadedTask.taskId], // 【修正】taskId 已经是 String，不需要 toString()
+      taskIds: [loadedTask.taskId],
     );
 
     return Column(
@@ -296,7 +502,6 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                       builder: (context) => SubtaskDetailView(
                         subtask: subtask,
                         userRole: widget.userRole,
-                        // 【修改】移除 currentUserId 参数
                         onSubtaskUpdated: (updatedSubtask) {
                           setState(() {
                             _taskFuture = TaskService.fetchTaskById(widget.taskId);
@@ -383,44 +588,49 @@ class _TaskDetailViewState extends State<TaskDetailView> {
       case TaskStatus.inProgress:
         return '进行中';
       case TaskStatus.reported:
-        return '已汇报';
+        return '已提交';
       case TaskStatus.completed:
         return '已完成';
       case TaskStatus.closed:
         return '已关闭';
+      default:
+        return '未知';
     }
   }
 
   Color _getStatusColor(TaskStatus status) {
     switch (status) {
       case TaskStatus.published:
-        return Color(0xFF999999);
+        return Color(0xFFFF8C42); // 橙色
       case TaskStatus.assigned:
-        return Color(0xFFFF8C42);
+        return Color(0xFF4ECDC4); // 青色
       case TaskStatus.inProgress:
-        return Color(0xFF4ECDC4);
+        return Colors.blue; // 蓝色
       case TaskStatus.reported:
-        return Colors.purple;
+        return Colors.purple; // 紫色
       case TaskStatus.completed:
-        return Color(0xFF88D8B0);
+        return Color(0xFF88D8B0); // 绿色
       case TaskStatus.closed:
-        return Colors.black45;
+        return Colors.grey; // 灰色
+      default:
+        return Colors.grey;
     }
   }
 
-  Future<void> _handleCheckIn(Task loadedTask) async {
-    showDialog(
+  // 处理提交报告
+  Future<void> _handleReport(Task loadedTask) async {
+    final result = await showDialog<bool>(
       context: context,
       builder: (context) {
         File? capturedImage;
         Position? currentPosition;
         String? locationAddress;
-        final noteController = TextEditingController();
+        final contentController = TextEditingController();
 
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: Text('写日志'),
+              title: Text('提交工作报告'),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -438,7 +648,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                             children: [
                               Icon(Icons.camera_alt, color: capturedImage != null ? Colors.green : Colors.grey),
                               SizedBox(width: 8),
-                              Text('1. 拍照 *', style: TextStyle(fontWeight: FontWeight.w500)),
+                              Text('1. 拍照附件', style: TextStyle(fontWeight: FontWeight.w500)),
                               Spacer(),
                               if (capturedImage != null)
                                 Icon(Icons.check_circle, color: Colors.green, size: 20),
@@ -478,7 +688,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                             children: [
                               Icon(Icons.location_on, color: currentPosition != null ? Colors.green : Colors.grey),
                               SizedBox(width: 8),
-                              Text('2. 获取位置 *', style: TextStyle(fontWeight: FontWeight.w500)),
+                              Text('2. 获取位置', style: TextStyle(fontWeight: FontWeight.w500)),
                               Spacer(),
                               if (currentPosition != null)
                                 Icon(Icons.check_circle, color: Colors.green, size: 20),
@@ -523,38 +733,48 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                     ),
                     SizedBox(height: 16),
                     TextField(
-                      controller: noteController,
+                      controller: contentController,
                       decoration: InputDecoration(
-                        labelText: '备注',
+                        labelText: '工作内容',
                         border: OutlineInputBorder(),
+                        hintText: '请输入今天完成的工作内容...',
                       ),
-                      maxLines: 3,
+                      maxLines: 5,
                     ),
                   ],
                 ),
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context, false),
                   child: Text('取消'),
                 ),
                 ElevatedButton(
-                  onPressed: (capturedImage != null && currentPosition != null)
-                      ? () {
-                    Navigator.pop(context);
+                  onPressed: (currentPosition != null && contentController.text.isNotEmpty)
+                      ? () async {
+                    try {
+                      // 调用提交报告API
+                      await TaskService.createTaskReport(
+                        taskId: loadedTask.taskId,
+                        photo: capturedImage,
+                        location: currentPosition!,
+                        content: contentController.text,
+                        address: locationAddress,
+                      );
 
-                    // TODO: 在这里调用 API (例如 TaskService.createCheckIn(...))
-                    setState(() {
-                      _taskFuture = TaskService.fetchTaskById(widget.taskId);
-                      widget.onTaskUpdated(loadedTask);
-                    });
+                      // 更新任务状态为 reported
+                      await TaskService.updateTaskStatus(loadedTask.taskId, TaskStatus.reported);
 
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('日志记录成功，正在刷新...')),
-                    );
+                      Navigator.pop(context, true);
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('提交报告失败: $e')),
+                      );
+                      Navigator.pop(context, false);
+                    }
                   }
                       : null,
-                  child: Text('完成打卡'),
+                  child: Text('提交报告'),
                 ),
               ],
             );
@@ -562,6 +782,14 @@ class _TaskDetailViewState extends State<TaskDetailView> {
         );
       },
     );
+
+    if (result == true) {
+      // 提交报告成功，刷新数据
+      await _refreshData();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('工作报告提交成功，任务状态已更新')),
+      );
+    }
   }
 
   String _formatTaskDate(DateTime? date) {
@@ -609,7 +837,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                 _buildDetailRow(
                   icon: Icons.person_outline,
                   title: '创建者',
-                  value: loadedTask.creator?.name??'未知',
+                  value: loadedTask.creator?.name ?? '未知',
                   iconColor: Color(0xFF4ECDC4),
                 ),
                 Divider(height: 1),

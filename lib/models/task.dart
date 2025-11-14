@@ -21,12 +21,12 @@ enum TaskPriority {
 }
 
 enum TaskStatus {
-  published('Published'),
-  assigned('Assigned'),
-  inProgress('InProgress'),
-  reported('Reported'),
-  completed('Completed'),
-  closed('Closed');
+  published('Published'), //已发布
+  assigned('Assigned'),  //已分配
+  inProgress('InProgress'),  //
+  reported('Reported'),  //已经提交
+  completed('Completed'),  //已审核
+  closed('Closed'); //完成
 
   final String sqlValue;
   const TaskStatus(this.sqlValue);
