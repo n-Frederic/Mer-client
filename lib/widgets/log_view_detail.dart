@@ -64,19 +64,8 @@ class _LogDetailViewState extends State<LogDetailView> {
         ),
       ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFFFF8E1),
-              Color(0xFFFFE66D).withOpacity(0.3),
-            ],
-          ),
-        ),
+        color: Color(0xFFFBF5C0),
 
-        // 【关键修改】我们用 FutureBuilder 包装整个 body
-        // 它会等待 LogService.fetchLogById(widget.logId) 完成
         child: FutureBuilder<Log>(
           future: _logFuture, // (在 initState 中设置)
           builder: (context, snapshot) {
@@ -234,14 +223,11 @@ class _LogDetailViewState extends State<LogDetailView> {
 
                   SizedBox(height: 16),
 
-                  // 【修复】
-                  // (现在 log.relatedTasks 包含数据, 这个 Widget 会正确显示)
-                  _buildRelatedTasks(log.relatedTasks),
+                   _buildRelatedTasks(log.relatedTasks),
                 ],
               ),
             );
             // --- build 方法的主体结束 ---
-
           }, // <-- FutureBuilder.builder 结束
         ),
       ),

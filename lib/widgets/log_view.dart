@@ -21,14 +21,12 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
   late Future<Map<String, dynamic>> _profileFuture;
   late Future<LogListResponse> _logsFuture;
   
-  // 【新增】当前用户信息
   Map<String, dynamic> _currentUser = {
     'name': '加载中...',
     'role': '...',
     'department': '...',
     'avatar': '👤',
     'canViewSubordinates': false,
-    'canRequestApproval': false,
   };
 
   @override
@@ -59,7 +57,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                 ? (user['name'] as String).substring(0, 1) 
                 : '👤',
             'canViewSubordinates': true, // 临时硬编码
-            'canRequestApproval': true, // 临时硬编码
           };
         });
       }
@@ -85,16 +82,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFFFF8E1),
-            Color(0xFFFFE66D).withOpacity(0.3),
-          ],
-        ),
-      ),
+      color: Color(0xFFFFF8E1),
       child: Column(
         children: [
           Container(
@@ -188,8 +176,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                         SizedBox(width: 8),
                         _buildFilterButton('member', '成员日志', Color(0xFFFF8C42), _currentUser['canViewSubordinates'] as bool),
                       ],
-                      SizedBox(width: 8),
-                      _buildFilterButton('approval', '待审批', Color(0xFFFF8C42), _currentUser['canViewSubordinates'] as bool),
                     ],
                   ),
                 ),
@@ -230,10 +216,9 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
     return GestureDetector(
       onTap: () {
         setState(() {
-          // (这个逻辑是正确的)
           if (isMemberButton) {
             _selectedMode = value;
-          } else if (value == 'my' || value == 'approval') {
+          } else if (value == 'my') {
             _selectedMode = value;
             _selectedMembers.clear();
           } else {
@@ -603,11 +588,11 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(log.status), // 【修改】
+                      color: _getStatusColor(log.status),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      log.status ?? '未知', // 【修改】
+                      log.status ?? '未知',
                       style: TextStyle(
                         fontSize: 10,
                         color: Colors.white,
@@ -617,7 +602,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                   ),
                   SizedBox(width: 8),
                   Text(
-                    _formatDate(log.createdAt), // 【修改】使用 createdAt
+                    _formatDate(log.createdAt),
                     style: TextStyle(
                       fontSize: 12,
                       color: Color(0xFF999999),
@@ -682,8 +667,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
     switch (status) {
       case '已通过':
         return Color(0xFF4ECDC4);
-      case '待审批':
-        return Color(0xFFFFE66D);
       case '已拒绝':
         return Color(0xFFFF6B9D);
       default:
@@ -714,8 +697,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
         return '团队暂无日志记录';
       case 'member':
         return _selectedMembers.isEmpty ? '请选择要查看的团队成员' : '该成员暂无日志记录';
-      case 'approval':
-        return '暂无待审批的日志';
       default:
         return '暂无相关日志';
     }
