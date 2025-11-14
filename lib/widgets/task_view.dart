@@ -8,7 +8,6 @@ import '../models/task.dart';
 import '../services/task_service.dart';
 import '../models/user.dart';
 import '../models/role.dart';
-import '../services/auth_service.dart';
 
 class CalendarView extends StatefulWidget {
   @override
@@ -66,15 +65,6 @@ class _CalendarViewState extends State<CalendarView>
     return fetchedRole;
   }
 
-
-  // 【新增】获取当前登录用户ID的辅助方法
-  Future<String> _getCurrentUserId() async {
-    final userId = await AuthService.getSavedUserId();
-    if (userId == null) {
-      throw Exception('无法获取当前用户ID，请重新登录');
-    }
-    return userId.toString(); // 转换为 String
-  }
 
   // 【关键修复】移除 userId 参数
   Future<List<Task>> _fetchTasksByMode(String mode) async {
@@ -583,21 +573,12 @@ class _CalendarViewState extends State<CalendarView>
           itemBuilder: (context, index) {
             final task = selectedDayTasks[index];
             return GestureDetector(
-              onTap: () async {
-                final currentUserId = await _getCurrentUserId();
-                if (!mounted) return;
+              onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => TaskDetailView(
                       taskId: task.taskId,
-                      userRole: _currentUserRole,
-                      currentUserId: currentUserId, // 【新增】
-                      onTaskUpdated: (updatedTask) {
-                        setState(() {
-                          _tasksFuture = _fetchTasksByMode(_taskFilterMode);
-                        });
-                      },
                     ),
                   ),
                 );
@@ -884,21 +865,12 @@ class _CalendarViewState extends State<CalendarView>
   // 周视图任务项
   Widget _buildWeekTaskItem(Task task) {
     return GestureDetector(
-      onTap: () async {
-        final currentUserId = await _getCurrentUserId();
-        if (!mounted) return;
+      onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => TaskDetailView(
               taskId: task.taskId,
-              userRole: _currentUserRole,
-              currentUserId: currentUserId, // 【新增】
-              onTaskUpdated: (updatedTask) {
-                setState(() {
-                  _tasksFuture = _fetchTasksByMode(_taskFilterMode);
-                });
-              },
             ),
           ),
         );
@@ -959,21 +931,12 @@ class _CalendarViewState extends State<CalendarView>
   // 日视图任务卡片
   Widget _buildTaskCard(Task task) {
     return GestureDetector(
-      onTap: () async {
-        final currentUserId = await _getCurrentUserId();
-        if (!mounted) return;
+      onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => TaskDetailView(
               taskId: task.taskId,
-              userRole: _currentUserRole,
-              currentUserId: currentUserId, // 【新增】
-              onTaskUpdated: (updatedTask) {
-                setState(() {
-                  _tasksFuture = _fetchTasksByMode(_taskFilterMode);
-                });
-              },
             ),
           ),
         );
@@ -1312,21 +1275,12 @@ class _CalendarViewState extends State<CalendarView>
                   itemBuilder: (context, index) {
                     final task = tasksToRender[index];
                     return GestureDetector(
-                      onTap: () async {
-                        final currentUserId = await _getCurrentUserId();
-                        if (!mounted) return;
+                      onTap: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => TaskDetailView(
                               taskId: task.taskId,
-                              userRole: _currentUserRole,
-                              currentUserId: currentUserId, // 【新增】
-                              onTaskUpdated: (updatedTask) {
-                                setState(() {
-                                  _tasksFuture = _fetchTasksByMode(_taskFilterMode);
-                                });
-                              },
                             ),
                           ),
                         );

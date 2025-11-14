@@ -95,7 +95,7 @@ class LogService {
     required String todaySummary,
     required String tomorrowPlan,
     required String helpNeeded,
-    required List<String> taskIds,
+    required List<String> taskId,
   }) async {
     final authToken = await AuthService.getSavedToken();
     if (authToken == null) {
@@ -112,7 +112,7 @@ class LogService {
       'tomorrowPlan': tomorrowPlan,
       'helpNeeded': helpNeeded,
       "log_date": formattedDate,
-      'taskIds': taskIds,
+      'taskIds': taskId,
     };
 
     try {
@@ -134,7 +134,7 @@ class LogService {
           throw Exception('创建日志失败: ${responseData['message'] ?? '未知错误'}');
         }
       } else {
-        print('❌ createLog 失败，请求的 URL: $uri');
+        print('createLog 失败，请求的 URL: $uri');
         throw Exception('创建日志失败，服务器响应码: ${response.statusCode}');
       }
     } catch (e) {
@@ -142,4 +142,49 @@ class LogService {
       throw Exception('LogService 请求失败: $e');
     }
   }
+
+  static Future<Log> fetchLogById(String logId) async {
+
+    final authToken = await AuthService.getSavedToken();
+    if (authToken == null) {
+      throw Exception('用户未认证');
+    }
+
+    final uri = Uri.parse('$baseUrl/journals/$logId');
+    print('LogService: [fetchLogById] 请求: $uri');
+
+    try {
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final String jsonString = utf8.decode(response.bodyBytes);
+        final Map<String, dynamic> responseData = json.decode(jsonString);
+
+        // (根据你的 API 文档, 完整数据在 'data' 键中)
+        if (responseData['code'] == 200 && responseData['data'] != null) {
+          // (使用我们已更新的 Log.fromJson)
+          return Log.fromJson(responseData['data']);
+        } else {
+          // (如果404或后端返回错误)
+          if (responseData.containsKey('message')) {
+            throw Exception('无法解析日志详情: ${responseData['message']}');
+          }
+          throw Exception('无法解析日志详情: 响应格式错误');
+        }
+      } else {
+        throw Exception('无法加载日志详情，服务器响应码: ${response.statusCode}');
+      }
+    } catch (e, s) {
+      print('LogService: [fetchLogById] 捕获到原始错误: $e');
+      print('LogService: [fetchLogById] 原始堆栈: $s');
+      throw Exception('LogService 请求失败: $e');
+    }
+  }
+
 }

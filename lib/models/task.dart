@@ -2,6 +2,23 @@
 
 import 'user.dart';
 
+class TaskRelatedLog {
+  final String logId;
+  final String title;
+
+  TaskRelatedLog({
+    required this.logId,
+    required this.title,
+  });
+
+  factory TaskRelatedLog.fromJson(Map<String, dynamic> json) {
+    return TaskRelatedLog(
+      logId: (json['log_id'] ?? json['logId'] ?? '').toString(),
+      title: json['title']?.toString() ?? '未命名日志',
+    );
+  }
+}
+
 // --- Enums (TaskPriority, TaskStatus) 保持不变 ---
 enum TaskPriority {
   low('Low'),
@@ -53,6 +70,7 @@ class Task {
   final DateTime? dueAt;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final List<TaskRelatedLog> relatedLogs;
 
   Task({
     required this.taskId,
@@ -65,6 +83,7 @@ class Task {
     this.dueAt,
     this.createdAt,
     this.updatedAt,
+    this.relatedLogs = const [],
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
@@ -89,6 +108,10 @@ class Task {
       dueAt: json['dueAt'] != null ? DateTime.parse(json['dueAt']) : null,
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
       updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
+      relatedLogs: (json['related_logs'] as List?)
+              ?.map((logJson) => TaskRelatedLog.fromJson(logJson as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
   }
 

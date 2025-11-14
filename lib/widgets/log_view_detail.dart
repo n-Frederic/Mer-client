@@ -1,13 +1,13 @@
 // lib/views/log_view_detail.dart
 import 'package:flutter/material.dart';
-import '../models/log.dart'; // <-- 【修改】导入 Log 模型
-import '../models/user.dart'; // <-- 【新增】
-import '../services/profile_service.dart'; // <-- 【新增】
+import '../models/log.dart';
+import '../services/log_service.dart';
+import '../services/profile_service.dart';
+import '../widgets/task_detail_view.dart';
 
 class LogDetailView extends StatefulWidget {
-  // 【修改】不再接收 Map，而是接收强类型 Log 对象
-  final Log log;
-  const LogDetailView({Key? key, required this.log}) : super(key: key);
+  final String logId;
+  const LogDetailView({Key? key, required this.logId}) : super(key: key);
 
   @override
   State<LogDetailView> createState() => _LogDetailViewState();
@@ -15,15 +15,16 @@ class LogDetailView extends StatefulWidget {
 
 class _LogDetailViewState extends State<LogDetailView> {
 
-  // 【新增】用于异步加载作者信息
+  late Future<Log> _logFuture;
   late Future<Map<String, dynamic>> _authorFuture;
 
   @override
   void initState() {
     super.initState();
-    // 【新增】调用 API 获取作者信息
-    // (我们使用您已有的 ProfileService.fetchUserById)
-    _authorFuture = ProfileService.fetchUserById(widget.log.userId);
+    _logFuture = LogService.fetchLogById(widget.logId);
+    _authorFuture = _logFuture.then((log) {
+      return ProfileService.fetchUserById(log.userId);
+    });
   }
 
   // --- 辅助函数 ---
@@ -45,9 +46,6 @@ class _LogDetailViewState extends State<LogDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    // 【修改】直接从 widget.log 获取强类型数据
-    final log = widget.log;
-
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -76,134 +74,252 @@ class _LogDetailViewState extends State<LogDetailView> {
             ],
           ),
         ),
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // --- 头部信息 (使用 FutureBuilder 加载作者) ---
-              Row(
+
+        // 【关键修改】我们用 FutureBuilder 包装整个 body
+        // 它会等待 LogService.fetchLogById(widget.logId) 完成
+        child: FutureBuilder<Log>(
+          future: _logFuture, // (在 initState 中设置)
+          builder: (context, snapshot) {
+
+            // 1. 加载中
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(child: CircularProgressIndicator());
+            }
+
+            // 2. 加载失败
+            if (snapshot.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text('加载日志失败: ${snapshot.error}'),
+                ),
+              );
+            }
+
+            // 3. 没有数据
+            if (!snapshot.hasData) {
+              return Center(child: Text('未找到日志'));
+            }
+
+            // 4. 成功！
+            // 【修改】从 snapshot (而不是 widget) 获取强类型数据
+            final log = snapshot.data!;
+
+            // --- 这是你之前 build 方法的全部内容 ---
+            // --- 现在它在 FutureBuilder 内部 ---
+            return SingleChildScrollView(
+              padding: EdgeInsets.all(20),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 【修改】使用 FutureBuilder 显示头像和姓名
-                  Expanded(
-                    child: FutureBuilder<Map<String, dynamic>>(
-                      future: _authorFuture,
-                      builder: (context, snapshot) {
+                  // --- 头部信息 (使用 *嵌套* FutureBuilder 加载作者) ---
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: FutureBuilder<Map<String, dynamic>>(
+                          future: _authorFuture, // (在 initState 中设置)
+                          builder: (context, authorSnapshot) {
 
-                        // (根据 ProfileService.fetchUserById 的 Map<String, dynamic> 响应)
-                        final authorData = snapshot.data;
+                            String authorName = '加载中...';
+                            String authorAvatar = '👤';
 
-                        final authorName = authorData?['name'] ?? '加载中...';
-                        final authorAvatar = (authorData?['username'] as String?)?.substring(0, 1) ?? '👤';
+                            if (authorSnapshot.hasData) {
+                              // (根据 ProfileService.fetchUserById 的 Map<String, dynamic> 响应)
+                              // (我们假设它返回 { 'user': ... })
+                              final authorData = authorSnapshot.data?['user'];
+                              authorName = authorData?['name'] ?? '未知作者';
+                              authorAvatar = (authorData?['username'] as String?)?.substring(0, 1) ?? '👤';
+                            } else if (authorSnapshot.hasError) {
+                              authorName = '作者加载失败';
+                            }
 
-                        return Row(
-                          children: [
-                            Text(authorAvatar, style: TextStyle(fontSize: 24)),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    // 【修改】使用 todaySummary
-                                    log.todaySummary ?? '日志 (ID: ${log.logId})',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF333333),
-                                    ),
+                            return Row(
+                              children: [
+                                Text(authorAvatar, style: TextStyle(fontSize: 24)),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        log.todaySummary ?? '日志 (ID: ${log.logId})',
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF333333),
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        '$authorName · ${_formatDate(log.logDate)}',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Color(0xFF666666),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  SizedBox(height: 4),
-                                  Text(
-                                    // 【修改】使用 authorName 和 logDate
-                                    '$authorName · ${_formatDate(log.logDate)}',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Color(0xFF666666),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(log.status), // 【修改】
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      log.status ?? '未知', // 【修改】
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
+                                ),
+                              ],
+                            );
+                          },
+                        ),
                       ),
-                    ),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(log.status),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          log.status ?? '未知',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
+                  SizedBox(height: 20),
+
+                  // --- 【修改】显示三个新字段 ---
+                  _buildDetailSection(
+                      '今日总结',
+                      log.todaySummary,
+                      Color(0xFF4ECDC4) // 绿色
+                  ),
+                  SizedBox(height: 16),
+                  _buildDetailSection(
+                      '明日计划',
+                      log.tomorrowPlan,
+                      Color(0xFFFF8C42) // 橙色
+                  ),
+                  SizedBox(height: 16),
+                  _buildDetailSection(
+                      '需要的协调与帮助',
+                      log.helpNeeded,
+                      Color(0xFFFF6B9D) // 粉色
+                  ),
+                  SizedBox(height: 16),
+
+                  // --- 【修改】显示 Tags ---
+                  if (log.tags.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: log.tags
+                          .map((tag) => Container(
+                        padding:
+                        EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Color(0xFFFF8C42), Color(0xFFFFE66D)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          tag,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ))
+                          .toList(),
+                    ),
+
+                  SizedBox(height: 16),
+
+                  // 【修复】
+                  // (现在 log.relatedTasks 包含数据, 这个 Widget 会正确显示)
+                  _buildRelatedTasks(log.relatedTasks),
                 ],
               ),
-              SizedBox(height: 20),
+            );
+            // --- build 方法的主体结束 ---
 
-              // --- 【修改】显示三个新字段 (替换旧的 'content') ---
-              _buildDetailSection(
-                  '今日总结',
-                  log.todaySummary,
-                  Color(0xFF4ECDC4) // 绿色
-              ),
-              SizedBox(height: 16),
-              _buildDetailSection(
-                  '明日计划',
-                  log.tomorrowPlan,
-                  Color(0xFFFF8C42) // 橙色
-              ),
-              SizedBox(height: 16),
-              _buildDetailSection(
-                  '需要的协调与帮助',
-                  log.helpNeeded,
-                  Color(0xFFFF6B9D) // 粉色
-              ),
-
-              SizedBox(height: 16),
-
-              // --- 【修改】显示 Tags (使用 log.tags) ---
-              if (log.tags.isNotEmpty)
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: log.tags
-                      .map((tag) => Container(
-                    padding:
-                    EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Color(0xFFFF8C42), Color(0xFFFFE66D)],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      tag,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ))
-                      .toList(),
-                ),
-            ],
-          ),
+          }, // <-- FutureBuilder.builder 结束
         ),
       ),
     );
   }
 
+  Widget _buildRelatedTasks(List<RelatedTask> tasks) {
+    // 如果没有关联任务，不显示任何东西
+    if (tasks.isEmpty) {
+      return SizedBox.shrink(); // 返回一个空的小部件
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 1. 标题
+        Text(
+          '关联的任务', // (你的需求：只显示标题和跳转)
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF333333),
+          ),
+        ),
+        SizedBox(height: 8),
+
+        // 2. 任务卡片列表
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ListView.separated(
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+            itemCount: tasks.length,
+            itemBuilder: (context, index) {
+              final task = tasks[index];
+              return ListTile(
+                leading: Icon(Icons.task_alt, color: Color(0xFFFF8C42)),
+                title: Text(task.title, style: TextStyle(fontWeight: FontWeight.w500)),
+                trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                onTap: () {
+                  // 【核心】点击时跳转到任务详情页
+                  print('导航到任务详情页, ID: ${task.taskId}');
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TaskDetailView(
+                        taskId: task.taskId.toString(),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+            separatorBuilder: (context, index) => Divider(
+              height: 1,
+              thickness: 1,
+              indent: 16,
+              endIndent: 16,
+              color: Colors.grey[100],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
   // 【新增】用于显示新字段的辅助 Widget
   Widget _buildDetailSection(String title, String? content, Color accentColor) {
     return Column(

@@ -1,82 +1,62 @@
 import 'package:flutter/material.dart';
-import '../models/log.dart';
 import 'subtask_detail_view.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:geolocator/geolocator.dart';
-import 'dart:io';
 import '../models/task.dart';
-import '../models/task_report.dart';
 import '../models/role.dart';
 import 'log_view_detail.dart';
 import '../services/task_service.dart';
 import '../services/auth_service.dart';
+import '../services/profile_service.dart';
 
 class TaskDetailView extends StatefulWidget {
   final String taskId;
-  final Role userRole;
-  final Function(Task) onTaskUpdated;
-  final String currentUserId;
 
-  TaskDetailView({
+  const TaskDetailView({
+    Key? key,
     required this.taskId,
-    required this.userRole,
-    required this.onTaskUpdated,
-    required this.currentUserId,
-  });
+  }) : super(key: key);
 
   @override
   _TaskDetailViewState createState() => _TaskDetailViewState();
 }
 
 class _TaskDetailViewState extends State<TaskDetailView> {
-  late Future<Task> _taskFuture;
-  List<TaskReport> _taskReports = [];
-  bool _isLoadingReports = false;
-  // 任务分配人员相关状态
-  Map<String, dynamic>? _taskAssignees;
-  bool _isLoadingAssignees = false;
+  late Future<Map<String, dynamic>> _dataFuture;
 
   @override
   void initState() {
     super.initState();
-    _taskFuture = TaskService.fetchTaskById(widget.taskId);
-    Future.microtask(() => _loadTaskReports());
+    _dataFuture = _loadData();
   }
 
-  // 加载任务报告
-  Future<void> _loadTaskReports() async {
-    if (mounted) {
-      setState(() {
-        _isLoadingReports = true;
-      });
-    }
+  Future<Map<String, dynamic>> _loadData() async {
+    final taskFuture = TaskService.fetchTaskById(widget.taskId);
+    final userIdFuture = AuthService.getSavedUserId();
+    final profileFuture = ProfileService.getUserProfile();
 
-    try {
-      final reports = await TaskService.fetchTaskReports(widget.taskId);
+    final task = await taskFuture;
+    final currentUserId = (await userIdFuture)?.toString() ?? '';
+    final profile = await profileFuture;
+    final role = _extractUserRole(profile);
 
-      if (mounted) {
-        setState(() {
-          _taskReports = reports;
-          _isLoadingReports = false;
-        });
-      }
-    } catch (e) {
-      print('加载任务报告失败: $e');
-      if (mounted) {
-        setState(() {
-          _taskReports = [];
-          _isLoadingReports = false;
-        });
-      }
-    }
+    return {
+      'task': task,
+      'currentUserId': currentUserId,
+      'role': role,
+    };
   }
-  // 刷新所有数据
+
+  Role _extractUserRole(Map<String, dynamic> profile) {
+    final user = profile['user'] as Map<String, dynamic>? ?? {};
+    final roleId = int.tryParse(user['role_id']?.toString() ?? '') ?? 0;
+    final roleName = user['role_name']?.toString() ?? '未知角色';
+    final roleDesc = user['role_desc']?.toString();
+    return Role(roleId: roleId, name: roleName, description: roleDesc);
+  }
+
   Future<void> _refreshData() async {
     setState(() {
-      _taskFuture = TaskService.fetchTaskById(widget.taskId);
-      _isLoadingReports = true;
+      _dataFuture = _loadData();
     });
-    await _loadTaskReports();
   }
 
   @override
@@ -91,8 +71,8 @@ class _TaskDetailViewState extends State<TaskDetailView> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: FutureBuilder<Task>(
-        future: _taskFuture,
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _dataFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
@@ -109,13 +89,14 @@ class _TaskDetailViewState extends State<TaskDetailView> {
           }
 
           if (snapshot.hasData) {
-            final Task loadedTask = snapshot.data!;
+            final Task loadedTask = snapshot.data!['task'] as Task;
+            final String currentUserId = snapshot.data!['currentUserId'] as String;
+            final Role currentUserRole = snapshot.data!['role'] as Role;
 
             final Map<String, dynamic> _dynamicProperties = {
               'emoji': '📝',
               'progress': _calculateProgress(loadedTask),
-              'log': '暂无日志',
-              'assignedTo': loadedTask.creator?.userId ?? '未知',
+              'assignedTo': loadedTask.creator?.userId ?? currentUserId,
               'subtasks': [],
               'collaborators': ['N/A'],
             };
@@ -124,6 +105,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
               onRefresh: _refreshData,
               child: SingleChildScrollView(
                 padding: EdgeInsets.all(16),
+                physics: AlwaysScrollableScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -131,14 +113,11 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                     SizedBox(height: 20),
                     _buildTaskDetailsList(loadedTask),
                     SizedBox(height: 20),
-                    _buildSubtasks(loadedTask, _dynamicProperties),
+                    _buildSubtasks(loadedTask, _dynamicProperties, currentUserRole),
                     SizedBox(height: 20),
                     _buildCollaborators(_dynamicProperties),
                     SizedBox(height: 20),
-                    _buildTaskLog(loadedTask, _dynamicProperties),
-                    SizedBox(height: 20),
-                    // 显示报告相关部分
-                    _buildReportSection(loadedTask),
+                    _buildTaskLogsList(loadedTask.relatedLogs),
                     SizedBox(height: 20),
                   ],
                 ),
@@ -170,141 +149,6 @@ class _TaskDetailViewState extends State<TaskDetailView> {
       default:
         return 0.0;
     }
-  }
-
-  // 报告部分显示逻辑
-  Widget _buildReportSection(Task task) {
-    if (task.status == TaskStatus.published) {
-      // 任务发布状态 - 显示提交报告按钮
-      return Center(
-        child: ElevatedButton(
-          onPressed: () => _handleReport(task),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Color(0xFFFF8C42),
-            foregroundColor: Colors.white,
-            padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(25),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.assignment_turned_in, size: 20),
-              SizedBox(width: 8),
-              Text('提交工作报告', style: TextStyle(fontSize: 16)),
-            ],
-          ),
-        ),
-      );
-    } else {
-      // 其他状态 - 显示报告信息
-      return _buildReportInfo();
-    }
-  }
-
-  // 报告信息查看组件
-  Widget _buildReportInfo() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              '工作报告',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF333333)),
-            ),
-            SizedBox(width: 8),
-            if (_isLoadingReports)
-              SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-          ],
-        ),
-        SizedBox(height: 12),
-        Card(
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: _isLoadingReports
-                ? Center(child: CircularProgressIndicator())
-                : _taskReports.isEmpty
-                ? Column(
-              children: [
-                Icon(Icons.assignment_outlined,
-                    size: 48, color: Colors.grey[400]),
-                SizedBox(height: 8),
-                Text(
-                  '暂无工作报告',
-                  style: TextStyle(color: Color(0xFF666666)),
-                ),
-              ],
-            )
-                : Column(
-              children: _taskReports.map((report) => _buildReportItem(report)).toList(),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // 单个报告信息项
-  Widget _buildReportItem(TaskReport report) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.access_time, size: 16, color: Colors.grey),
-              SizedBox(width: 4),
-              Text(
-                _formatReportTime(report.createdAt),
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              Spacer(),
-              if (report.attachments.isNotEmpty)
-                Icon(Icons.photo_camera, size: 16, color: Colors.green),
-              SizedBox(width: 4),
-              Icon(Icons.location_on, size: 16, color: Colors.blue),
-            ],
-          ),
-          SizedBox(height: 8),
-          if (report.content.isNotEmpty)
-            Text(
-              report.content,
-              style: TextStyle(fontSize: 14, color: Color(0xFF666666)),
-            ),
-          SizedBox(height: 4),
-          Text(
-            '位置: ${report.address}',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-          if (report.attachments.isNotEmpty) ...[
-            SizedBox(height: 8),
-            Text(
-              '附件: ${report.attachments.length} 个文件',
-              style: TextStyle(fontSize: 12, color: Colors.blue),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // 格式化报告时间
-  String _formatReportTime(DateTime timestamp) {
-    return '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')} ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
   }
 
   Widget _buildTaskInfo(Task loadedTask, Map<String, dynamic> dynamicProperties) {
@@ -408,67 +252,59 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     }
   }
 
-  Widget _buildTaskLog(Task loadedTask, Map<String, dynamic> dynamicProperties) {
-    final String logContent = dynamicProperties['log'] ?? '暂无日志';
-    final String logUserId = loadedTask.creator?.userId.toString() ?? widget.currentUserId;
-
-    final Log placeholderLog = Log(
-      logId: '0',
-      userId: logUserId,
-      logDate: DateTime.now(),
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-      todaySummary: logContent,
-      tomorrowPlan: null,
-      helpNeeded: null,
-      status: '待审批',
-      tags: ['任务', '汇报'],
-      taskIds: [loadedTask.taskId],
-    );
-
+  Widget _buildTaskLogsList(List<TaskRelatedLog> logs) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '任务日志',
+          '相关日志',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF333333)),
         ),
         SizedBox(height: 12),
-        GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => LogDetailView(
-                  log: placeholderLog,
+        if (logs.isEmpty)
+          Text(
+            '当前任务还没有关联的日志',
+            style: TextStyle(color: Color(0xFF666666)),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+            itemCount: logs.length,
+            separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey[200]),
+            itemBuilder: (context, index) {
+              final relatedLog = logs[index];
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  relatedLog.title.isNotEmpty ? relatedLog.title : '日志 ${relatedLog.logId}',
+                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
-              ),
-            );
-          },
-          child: Card(
-            elevation: 4,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                logContent,
-                style: TextStyle(fontSize: 14, color: Color(0xFF666666), height: 1.5),
-                maxLines: 5,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
+                subtitle: Text(
+                  'ID: ${relatedLog.logId}',
+                  style: TextStyle(color: Color(0xFF666666)),
+                ),
+                trailing: Icon(Icons.chevron_right, color: Color(0xFFBDBDBD)),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => LogDetailView(logId: relatedLog.logId),
+                    ),
+                  );
+                },
+              );
+            },
           ),
-        ),
       ],
     );
   }
 
-  Widget _buildSubtasks(Task loadedTask, Map<String, dynamic> dynamicProperties) {
+  Widget _buildSubtasks(
+    Task loadedTask,
+    Map<String, dynamic> dynamicProperties,
+    Role currentUserRole,
+  ) {
     List<dynamic> subtasks = dynamicProperties['subtasks'] ?? [];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -501,12 +337,9 @@ class _TaskDetailViewState extends State<TaskDetailView> {
                     MaterialPageRoute(
                       builder: (context) => SubtaskDetailView(
                         subtask: subtask,
-                        userRole: widget.userRole,
+                        userRole: currentUserRole,
                         onSubtaskUpdated: (updatedSubtask) {
-                          setState(() {
-                            _taskFuture = TaskService.fetchTaskById(widget.taskId);
-                            widget.onTaskUpdated(loadedTask);
-                          });
+                          _refreshData();
                         },
                       ),
                     ),
@@ -614,181 +447,6 @@ class _TaskDetailViewState extends State<TaskDetailView> {
         return Colors.grey; // 灰色
       default:
         return Colors.grey;
-    }
-  }
-
-  // 处理提交报告
-  Future<void> _handleReport(Task loadedTask) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        File? capturedImage;
-        Position? currentPosition;
-        String? locationAddress;
-        final contentController = TextEditingController();
-
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text('提交工作报告'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey[300]!),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.camera_alt, color: capturedImage != null ? Colors.green : Colors.grey),
-                              SizedBox(width: 8),
-                              Text('1. 拍照附件', style: TextStyle(fontWeight: FontWeight.w500)),
-                              Spacer(),
-                              if (capturedImage != null)
-                                Icon(Icons.check_circle, color: Colors.green, size: 20),
-                            ],
-                          ),
-                          SizedBox(height: 8),
-                          if (capturedImage != null)
-                            Image.file(capturedImage!, height: 100)
-                          else
-                            ElevatedButton.icon(
-                              onPressed: () async {
-                                final ImagePicker picker = ImagePicker();
-                                final XFile? photo = await picker.pickImage(source: ImageSource.camera);
-                                if (photo != null) {
-                                  setDialogState(() {
-                                    capturedImage = File(photo.path);
-                                  });
-                                }
-                              },
-                              icon: Icon(Icons.camera_alt),
-                              label: Text('拍照'),
-                            ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 12),
-                    Container(
-                      padding: EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey[300]!),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.location_on, color: currentPosition != null ? Colors.green : Colors.grey),
-                              SizedBox(width: 8),
-                              Text('2. 获取位置', style: TextStyle(fontWeight: FontWeight.w500)),
-                              Spacer(),
-                              if (currentPosition != null)
-                                Icon(Icons.check_circle, color: Colors.green, size: 20),
-                            ],
-                          ),
-                          SizedBox(height: 8),
-                          if (currentPosition != null)
-                            Text(
-                              locationAddress ?? '${currentPosition!.latitude.toStringAsFixed(4)}, ${currentPosition!.longitude.toStringAsFixed(4)}',
-                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                            )
-                          else
-                            ElevatedButton.icon(
-                              onPressed: () async {
-                                try {
-                                  LocationPermission permission = await Geolocator.checkPermission();
-                                  if (permission == LocationPermission.denied) {
-                                    permission = await Geolocator.requestPermission();
-                                  }
-                                  if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
-                                    Position position = await Geolocator.getCurrentPosition();
-                                    setDialogState(() {
-                                      currentPosition = position;
-                                      locationAddress = '北京市朝阳区';
-                                    });
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('请授予位置权限')),
-                                    );
-                                  }
-                                } catch (e) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('定位失败: $e')),
-                                  );
-                                }
-                              },
-                              icon: Icon(Icons.location_on),
-                              label: Text('获取位置'),
-                            ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    TextField(
-                      controller: contentController,
-                      decoration: InputDecoration(
-                        labelText: '工作内容',
-                        border: OutlineInputBorder(),
-                        hintText: '请输入今天完成的工作内容...',
-                      ),
-                      maxLines: 5,
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: Text('取消'),
-                ),
-                ElevatedButton(
-                  onPressed: (currentPosition != null && contentController.text.isNotEmpty)
-                      ? () async {
-                    try {
-                      // 调用提交报告API
-                      await TaskService.createTaskReport(
-                        taskId: loadedTask.taskId,
-                        photo: capturedImage,
-                        location: currentPosition!,
-                        content: contentController.text,
-                        address: locationAddress,
-                      );
-
-                      // 更新任务状态为 reported
-                      await TaskService.updateTaskStatus(loadedTask.taskId, TaskStatus.reported);
-
-                      Navigator.pop(context, true);
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('提交报告失败: $e')),
-                      );
-                      Navigator.pop(context, false);
-                    }
-                  }
-                      : null,
-                  child: Text('提交报告'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (result == true) {
-      // 提交报告成功，刷新数据
-      await _refreshData();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('工作报告提交成功，任务状态已更新')),
-      );
     }
   }
 

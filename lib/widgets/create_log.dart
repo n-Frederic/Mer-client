@@ -92,7 +92,7 @@ class _CreateLogScreenState extends State<CreateLogScreen> {
         todaySummary: _todaySummaryController.text.trim(),
         tomorrowPlan: _tomorrowPlanController.text.trim(),
         helpNeeded: _helpNeededController.text.trim(),
-        taskIds: _selectedTaskIds, // 使用真实的 ID 列表
+        taskId: _selectedTaskIds, // 使用真实的 ID 列表
       );
 
       // 5. 处理成功

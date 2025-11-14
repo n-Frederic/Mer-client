@@ -312,7 +312,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
               title: Text('选择成员'),
               content: SizedBox(
                 width: double.maxFinite,
-                // 【修改】固定高度，防止 FutureBuilder 重绘时跳动
                 height: MediaQuery.of(context).size.height * 0.6,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -722,11 +721,11 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
     }
   }
 
-  void _showLogDetail(Log log) { // <-- 【已修改】
+  void _showLogDetail(Log log) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => LogDetailView(log: log),
+        builder: (context) => LogDetailView(logId: log.logId),
       ),
     );
   }
