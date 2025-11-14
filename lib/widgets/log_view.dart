@@ -312,7 +312,6 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
               title: Text('选择成员'),
               content: SizedBox(
                 width: double.maxFinite,
-                // 【修改】固定高度，防止 FutureBuilder 重绘时跳动
                 height: MediaQuery.of(context).size.height * 0.6,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -336,13 +335,19 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                     ),
                     SizedBox(height: 12),
 
-                    // 【修改】部门下拉菜单 (使用 FutureBuilder)
                     FutureBuilder<List<dynamic>>(
                         future: departmentsFuture,
                         builder: (context, snapshot) {
-                          if (!snapshot.hasData) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
                             return Text('加载部门中...');
                           }
+                          if (snapshot.hasError) {
+                            return Text('加载部门失败: ${snapshot.error}');
+                          }
+                          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                            return Text('未找到部门数据');
+                          }
+
                           final departments = snapshot.data!;
 
                           return DropdownButtonFormField<String>(
@@ -352,18 +357,17 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                               contentPadding: EdgeInsets.symmetric(horizontal: 10),
                             ),
                             value: selectedDepartment,
-                            // 假设 API 返回 { "dept_id": 1, "name": "技术部" }
+
                             items: departments.map((dept) {
                               return DropdownMenuItem(
-                                value: dept['dept_id'].toString(), // 存 ID
-                                child: Text(dept['name']), // 显示 Name
+                                value: dept['deptId'].toString(),
+                                child: Text(dept['name'] ?? '未知部门'),
                               );
                             }).toList(),
                             onChanged: (String? newValue) {
                               setDialogState(() {
                                 selectedDepartment = newValue;
                                 selectedTeam = null;
-                                // 重新加载团队和用户
                                 teamsFuture = ProfileService.fetchTeams(departmentId: selectedDepartment);
                                 usersFuture = loadUsers(selectedDepartment, selectedTeam, tempSearchTerm);
                               });

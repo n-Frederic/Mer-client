@@ -33,3 +33,10 @@ next-env.d.ts
 /.dart_tool
 .dart_tool/flutter_build/fccb01ef4fa7764548c00f37f683a6a3/.filecache
 /.dart_tool
+/.dart_tool/flutter_build
+/.dart_tool
+.dart_tool/flutter_build/8ef2046813d17b7fa924b1c441531226/.filecache
+.dart_tool/flutter_build/8ef2046813d17b7fa924b1c441531226/.filecache
+/.dart_tool
+*.dill
+/.dart_tool
