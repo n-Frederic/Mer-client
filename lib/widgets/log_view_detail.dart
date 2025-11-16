@@ -30,7 +30,6 @@ class _LogDetailViewState extends State<LogDetailView> {
   @override
   void initState() {
     super.initState();
-    _loadComments();
     _loadCurrentUserId();
     _logFuture = LogService.fetchLogById(widget.logId);
     _authorFuture = _logFuture.then((log) {
@@ -57,6 +56,7 @@ class _LogDetailViewState extends State<LogDetailView> {
     if (mounted) {
       setState(() {
         _currentUserId = id?.toString();
+        _loadComments();
       });
     }
   }
@@ -437,9 +437,9 @@ class _LogDetailViewState extends State<LogDetailView> {
 
   // 【新增】单个评论项 UI
   Widget _buildCommentItem(Comment comment) {
-    // 检查是否为作者，以便显示删除按钮
-    final bool isAuthor = comment.authorInfo.userId == _currentUserId;
 
+    final String commentAuthorId = comment.authorInfo.userId.replaceAll(RegExp(r'[^0-9]'), '');
+    final bool isAuthor = commentAuthorId == _currentUserId;
     return Container(
       padding: EdgeInsets.all(12),
       decoration: BoxDecoration(

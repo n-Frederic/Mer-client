@@ -95,15 +95,30 @@ class CommentService {
   }
 
   // 3. 删除评论 (DELETE /api/comments/{commentId})
+  // 在 lib/services/comment_service.dart -> CommentService 类中...
+
   static Future<bool> deleteComment(String commentId) async {
     final headers = await _getAuthHeaders();
-    // 假设删除接口也需要结尾的斜杠 (如果不需要，请移除它)
-    final uri = Uri.parse('$baseUrl/comments/$commentId/');
+
+    final userId = await AuthService.getSavedUserId();
+    if (userId == null) {
+      throw Exception('无法获取当前用户ID');
+    }
+
+    final Map<String, String> params = {
+      'userId': userId.toString()
+    };
+
+    final uri = Uri.parse('$baseUrl/comments/$commentId').replace(queryParameters: params);
 
     print('CommentService: [deleteComment] 请求: $uri');
 
     try {
-      final response = await http.delete(uri, headers: headers);
+      final response = await http.delete(
+        uri,
+        headers: headers,
+      );
+
       final String jsonString = utf8.decode(response.bodyBytes);
       print('CommentService: [deleteComment] 响应 (${response.statusCode}): $jsonString');
 
@@ -111,6 +126,9 @@ class CommentService {
         final responseData = json.decode(jsonString);
         return responseData['code'] == 200;
       } else {
+        if (response.statusCode == 403) {
+          throw Exception('无权删除此评论');
+        }
         throw Exception('删除评论失败: ${response.statusCode}');
       }
     } catch (e) {
