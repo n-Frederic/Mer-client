@@ -21,7 +21,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
   late Future<Map<String, dynamic>> _profileFuture;
   late Future<LogListResponse> _logsFuture;
   List<String> _searchTags = [];
-  
+
   Map<String, dynamic> _currentUser = {
     'name': '加载中...',
     'role': '...',
@@ -42,7 +42,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
     _profileFuture = ProfileService.getUserProfile();
     _loadUserProfile();
   }
-  
+
   // 【新增】加载用户信息
   void _loadUserProfile() async {
     try {
@@ -54,8 +54,8 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
             'name': user['name'] ?? '未知姓名',
             'role': 'ID: ${user['role_id'] ?? '?'}',
             'department': user['team'] ?? '未知团队',
-            'avatar': (user['name'] as String? ?? '').isNotEmpty 
-                ? (user['name'] as String).substring(0, 1) 
+            'avatar': (user['name'] as String? ?? '').isNotEmpty
+                ? (user['name'] as String).substring(0, 1)
                 : '👤',
             'canViewSubordinates': true, // 临时硬编码
           };
@@ -354,9 +354,18 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                     FutureBuilder<List<dynamic>>(
                         future: departmentsFuture,
                         builder: (context, snapshot) {
-                          if (!snapshot.hasData) {
+                          // --- 【⬇️ 修复：添加错误和加载中处理 ⬇️】 ---
+                          if (snapshot.connectionState == ConnectionState.waiting) {
                             return Text('加载部门中...');
                           }
+                          if (snapshot.hasError) {
+                            return Text('加载部门失败: ${snapshot.error}');
+                          }
+                          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                            return Text('未找到部门数据');
+                          }
+                          // --- 【⬆️ 修复结束 ⬆️】 ---
+
                           final departments = snapshot.data!;
 
                           return DropdownButtonFormField<String>(
@@ -366,18 +375,17 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                               contentPadding: EdgeInsets.symmetric(horizontal: 10),
                             ),
                             value: selectedDepartment,
-                            // 假设 API 返回 { "dept_id": 1, "name": "技术部" }
+
                             items: departments.map((dept) {
                               return DropdownMenuItem(
-                                value: dept['dept_id'].toString(), // 存 ID
-                                child: Text(dept['name']), // 显示 Name
+                                value: dept['deptId'].toString(),
+                                child: Text(dept['name'] ?? '未知部门'),
                               );
                             }).toList(),
                             onChanged: (String? newValue) {
                               setDialogState(() {
                                 selectedDepartment = newValue;
                                 selectedTeam = null;
-                                // 重新加载团队和用户
                                 teamsFuture = ProfileService.fetchTeams(departmentId: selectedDepartment);
                                 usersFuture = loadUsers(selectedDepartment, selectedTeam, tempSearchTerm);
                               });
@@ -387,9 +395,8 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                     ),
                     SizedBox(height: 12),
 
-                    // 【修改】团队下拉菜单（级联, 使用 FutureBuilder)
                     FutureBuilder<List<dynamic>>(
-                        future: teamsFuture, // 依赖于 selectedDepartment
+                        future: teamsFuture,
                         builder: (context, snapshot) {
                           if (snapshot.connectionState == ConnectionState.waiting) {
                             return Text('加载团队中...');
