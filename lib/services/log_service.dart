@@ -191,4 +191,57 @@ class LogService {
     }
   }
 
+  static Future<bool> updateLog(
+      String logId, {
+        required String todaySummary,
+        required String tomorrowPlan,
+        required String helpNeeded,
+        required List<String> taskId,
+      }) async {
+    final authToken = await AuthService.getSavedToken();
+    if (authToken == null) {
+      throw Exception('用户未认证');
+    }
+
+    final uri = Uri.parse('$baseUrl/journals/$logId');
+
+    print('LogService: [updateLog] 请求: $uri');
+
+    final Map<String, dynamic> body = {
+      'todaySummary': todaySummary,
+      'tomorrowPlan': tomorrowPlan,
+      'helpNeeded': helpNeeded,
+      'taskId': taskId, // (使用你确认的 'taskId' 键名)
+    };
+
+    try {
+      final response = await http.put(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+        body: json.encode(body),
+      );
+
+      final String jsonString = utf8.decode(response.bodyBytes);
+      print('LogService: [updateLog] 响应 (${response.statusCode}): $jsonString');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(jsonString);
+        if (responseData['ok'] == true) {
+          return true; // 更新成功
+        } else {
+          throw Exception('更新日志失败: ${responseData['message'] ?? '未知错误'}');
+        }
+      } else {
+        throw Exception('更新日志失败，服务器响应码: ${response.statusCode}');
+      }
+    } catch (e, s) {
+      print('LogService: [updateLog] 捕获到原始错误: $e');
+      print('LogService: [updateLog] 原始堆栈: $s');
+      throw Exception('LogService 请求失败: $e');
+    }
+  }
+
 }
