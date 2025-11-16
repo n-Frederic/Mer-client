@@ -7,6 +7,7 @@ import '../widgets/analytics_view.dart';
 import '../widgets/profile_view.dart';
 import '../widgets/create_log.dart';
 import '../widgets/create_task.dart';
+import '../widgets/notifications_view.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -71,6 +72,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(
+              Icons.mail_outline, // (信箱图标)
+              color: Colors.white, // (确保图标是白色)
+            ),
+            tooltip: '通知中心',
+            onPressed: () {
+              // (导航到我们之前创建的新页面)
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  // (假设 'NotificationsView' 来自 'widgets' 目录)
+                  builder: (context) => NotificationsView(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: PageView(
         controller: _pageController,
