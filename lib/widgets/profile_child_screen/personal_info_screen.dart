@@ -156,16 +156,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         ),
       ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFFFF8E1),
-              Color(0xFFFFE66D).withOpacity(0.3),
-            ],
-          ),
-        ),
+
         child: _isLoading
             ? Center(child: CircularProgressIndicator(color: Color(0xFFFF8C42)))
             : _errorMessage.isNotEmpty
@@ -193,51 +184,6 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
           padding: EdgeInsets.all(20),
           child: Column(
             children: [
-              // 头像编辑区域
-              Center(
-                child: Stack(
-                  children: [
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 8,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text('🐰', style: TextStyle(fontSize: 50)),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Color(0xFFFF8C42),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 4,
-                            ),
-                          ],
-                        ),
-                        padding: EdgeInsets.all(8),
-                        child: Icon(Icons.camera_alt, color: Colors.white, size: 20),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 32),
-
               _buildReadOnlyField('姓名', _nameController),
               SizedBox(height: 16),
               _buildReadOnlyField('邮箱', _emailController),
@@ -261,7 +207,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _saveUserData,
+                  onPressed: _saveUserData, // (这个方法我们之前已修复)
                   style: ElevatedButton.styleFrom(
                     padding: EdgeInsets.symmetric(vertical: 16),
                     backgroundColor: Color(0xFFFF8C42),
@@ -284,7 +230,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         ),
       ),
     );
-  }
+    }
 
   Widget _buildReadOnlyField(String label, TextEditingController controller) {
     return Column(
@@ -300,6 +246,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         ),
         SizedBox(height: 8),
         Container(
+          width: double.infinity, // 【新增】确保填满宽度
           decoration: BoxDecoration(
             color: Colors.grey[100],
             borderRadius: BorderRadius.circular(12),
@@ -481,36 +428,37 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     });
 
     try {
-      // 准备要发送到后端的数据 - 按照后端期望的格式
+      // (保留 team_id 的 API 缺陷处理)
+      int? teamId = _userData['team_id'];
+      if (teamId == null) {
+        print("警告: [saveUserData] 'team_id' 在 /api/user/profile 响应中未找到。");
+        print("         将回退到 'team_id: 1'。这可能导致数据错误。");
+        print("         后端 GET /api/user/profile 应返回 team_id。");
+        teamId = 1; // (回退)
+      }
+
       final profileData = {
-        'name': _nameController.text,
-        'username': _userData['username'] ?? '',
-        'email': _emailController.text,
         'phone': _phoneController.text,
         'gender': _convertGenderToBackendFormat(_selectedGender),
         'bio': _bioController.text,
-        'birth_date': _formatDateForBackend(_selectedBirthDate), // 使用正确的 LocalDateTime 格式
-        'team_id': _userData['team_id'] ?? 1,
+        'birth_date': _formatDateForBackend(_selectedBirthDate),
+        'team_id': teamId,
         'role_id': _userData['role_id'] ?? 1,
       };
 
       print('📦 准备发送的数据: $profileData');
 
-      // 发送到后端
       final success = await ProfileService.updateUserProfile(profileData);
 
       if (success) {
-        // 同时保存到本地
-        await _saveToLocalStorage();
+        // 成功后，重新加载数据以确保同步
+        await _loadUserDataFromBackend();
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('✅ 个人信息已保存'),
             backgroundColor: Color(0xFF4ECDC4),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
           ),
         );
       }

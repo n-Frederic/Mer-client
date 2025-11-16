@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import '../widgets/bottom_navigation.dart';
+import '../widgets/profile_view.dart';
 
 class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('个人中心')),
-      body: Center(child: Text('个人中心页面')),
+
+      // (不再显示占位符, 而是显示真正的 ProfileView 内容)
+      body: ProfileView(),
       bottomNavigationBar: BottomNavigation(
         currentIndex: 4,
         onTap: (index) => _navigateToPage(context, index),
@@ -27,9 +30,6 @@ class ProfileScreen extends StatelessWidget {
         break;
       case 3:
         Navigator.pushReplacementNamed(context, '/analytics');
-        break;
-      case 4:
-        // 已在个人中心页面
         break;
     }
   }

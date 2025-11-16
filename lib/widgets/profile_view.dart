@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-
+import '../services/profile_service.dart';
 import 'profile_child_screen/personal_info_screen.dart';
 import 'profile_child_screen/notifications_screen.dart';
 import 'profile_child_screen/theme_settings_screen.dart';
@@ -15,6 +15,7 @@ class ProfileView extends StatefulWidget {
 
 class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin {
   late AnimationController _animationController;
+  late Future<Map<String, dynamic>> _profileFuture;
 
   @override
   void initState() {
@@ -24,6 +25,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
       vsync: this,
     );
     _animationController.forward();
+    _profileFuture = ProfileService.getUserProfile();
   }
 
   @override
@@ -43,69 +45,69 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
         child: Column(
           children: [
             // 用户信息卡片
-            Container(
-              margin: EdgeInsets.all(16),
-              padding: EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFFFF8C42), Color(0xFFFF6B9D)],
-                ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 12,
-                    offset: Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 8,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
+            FutureBuilder<Map<String, dynamic>>(
+              future: _profileFuture, // (这在 initState 中设置)
+              builder: (context, snapshot) {
+
+                // 1. 设置默认占位符
+                String name = '加载中...';
+                String subtitle = '...';
+
+                if (snapshot.hasData) {
+                  // 2. 加载成功: 解析数据
+                  final userData = snapshot.data?['user'] as Map<String, dynamic>?;
+
+                  name = userData?['name']?.toString() ?? '未知姓名';
+                  subtitle = userData?['team']?.toString() ?? '潘多拉成员';
+
+                } else if (snapshot.hasError) {
+                  // 3. 加载失败
+                  name = '加载失败';
+                  subtitle = '请检查网络连接';
+                }
+
+                return Container(
+                  margin: EdgeInsets.all(16),
+                  padding: EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFFF8C42), Color(0xFFFF6B9D)],
                     ),
-                    child: Center(
-                      child: Text('🐰', style: TextStyle(fontSize: 40)),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    '小兔子',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Text(
-                    '高效工作者 ✨',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white.withOpacity(0.9),
-                    ),
-                  ),
-                  SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildStatItem('156', '完成任务'),
-                      _buildStatItem('89', '日志记录'),
-                      _buildStatItem('245', '工作天数'),
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 12,
+                        offset: Offset(0, 6),
+                      ),
                     ],
                   ),
-                ],
-              ),
+                  child: Column(
+                    children: [
+                      // (头像已按你要求移除)
+
+                      // 【修改】使用动态姓名 (替换 "小兔子")
+                      Text(
+                        name,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildStatItem('156', '完成任务'),
+                          _buildStatItem('89', '日志记录'),
+                          _buildStatItem('245', '工作天数'),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
 
             // 功能菜单
