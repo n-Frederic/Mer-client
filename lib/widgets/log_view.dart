@@ -179,7 +179,7 @@ class _LogViewState extends State<LogView> with TickerProviderStateMixin {
                               _logsFuture = _fetchLogs();
                             });
                           },
-                          
+
                           decoration: InputDecoration(
                             hintText: '搜索日志...',
                             hintStyle:
