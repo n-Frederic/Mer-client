@@ -1087,26 +1087,57 @@ class _TaskDetailViewState extends State<TaskDetailView> {
   // 获取当前位置的方法
   Future<void> _getCurrentLocation(StateSetter setDialogState, Function(Position, String) onSuccess) async {
     try {
+      // 显示加载状态
+      setDialogState(() {
+        // 可以在这里设置加载状态，比如显示"正在获取位置..."
+      });
+
+      // 1. 检查位置权限
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
-        Position position = await Geolocator.getCurrentPosition();
-        // 获取详细地址
-        String address = await TaskService.getAddressFromCoordinates(
-            position.latitude,
-            position.longitude
-        );
-        onSuccess(position, address);
-      } else {
+
+      if (permission == LocationPermission.deniedForever) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('请授予位置权限')),
+          SnackBar(content: Text('请在系统设置中授予位置权限')),
         );
+        return;
       }
+
+      if (permission == LocationPermission.denied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('需要位置权限才能获取详细地址')),
+        );
+        return;
+      }
+
+      // 2. 获取设备真实位置
+      print('📍 开始获取设备位置...');
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.best, // 最高精度
+      );
+
+      print('✅ 获取到设备坐标: ${position.latitude}, ${position.longitude}');
+      print('📱 位置来源: ${position.accuracy}');
+      print('⏰ 定位时间: ${position.timestamp}');
+
+      // 3. 使用腾讯位置服务获取详细地址
+      print('🗺️ 开始获取详细地址...');
+      String address = await TaskService.getAddressFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      print('🎯 最终地址: $address');
+
+      // 4. 返回结果
+      onSuccess(position, address);
+
     } catch (e) {
+      print('❌ 定位过程失败: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('定位失败: $e')),
+        SnackBar(content: Text('获取位置失败: $e')),
       );
     }
   }

@@ -1107,8 +1107,6 @@ class _CalendarViewState extends State<CalendarView>
   Color _getStatusColor(TaskStatus status) {
     switch (status) {
       case TaskStatus.published: return Color(0xFF999999);
-      case TaskStatus.assigned: return Color(0xFFFF8C42);
-      case TaskStatus.inProgress: return Colors.blue;
       case TaskStatus.reported: return Colors.purple;
       case TaskStatus.completed: return Colors.green;
       case TaskStatus.closed: return Colors.black45;
@@ -1118,8 +1116,6 @@ class _CalendarViewState extends State<CalendarView>
   IconData _getTaskIcon(TaskStatus status) {
     switch (status) {
       case TaskStatus.published: return Icons.publish;
-      case TaskStatus.assigned: return Icons.assignment_turned_in;
-      case TaskStatus.inProgress: return Icons.play_arrow;
       case TaskStatus.reported: return Icons.report;
       case TaskStatus.completed: return Icons.check_circle;
       case TaskStatus.closed: return Icons.lock;
@@ -1128,10 +1124,8 @@ class _CalendarViewState extends State<CalendarView>
 
   double _getTaskProgress(TaskStatus status) {
     switch (status) {
-      case TaskStatus.published: return 0.1;
-      case TaskStatus.assigned: return 0.3;
-      case TaskStatus.inProgress: return 0.6;
-      case TaskStatus.reported: return 0.8;
+      case TaskStatus.published: return 0.3;
+      case TaskStatus.reported: return 0.6;
       case TaskStatus.completed: return 1.0;
       case TaskStatus.closed: return 1.0;
     }
@@ -1143,9 +1137,7 @@ class _CalendarViewState extends State<CalendarView>
 
     switch (status) {
       case TaskStatus.published: text = '已发布'; break;
-      case TaskStatus.assigned: text = '已分配'; break;
-      case TaskStatus.inProgress: text = '进行中'; break;
-      case TaskStatus.reported: text = '已汇报'; break;
+      case TaskStatus.reported: text = '已提交'; break;
       case TaskStatus.completed: text = '已完成'; break;
       case TaskStatus.closed: text = '已关闭'; break;
     }
