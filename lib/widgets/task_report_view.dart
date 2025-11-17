@@ -21,7 +21,7 @@ class TaskReportView extends StatefulWidget {
 }
 
 class _TaskReportViewState extends State<TaskReportView> {
-  File? _selectedFile;
+  List<File> _selectedFiles = []; // 改为列表存储多个文件
   Position? _currentPosition;
   String? _locationAddress;
   final TextEditingController _contentController = TextEditingController();
@@ -107,60 +107,143 @@ class _TaskReportViewState extends State<TaskReportView> {
           Row(
             children: [
               Icon(Icons.attach_file,
-                  color: _selectedFile != null ? Colors.green : Colors.grey),
+                  color: _selectedFiles.isNotEmpty ? Colors.green : Colors.grey),
               SizedBox(width: 8),
               Text('选择附件', style: TextStyle(fontWeight: FontWeight.w500)),
               Spacer(),
-              if (_selectedFile != null)
+              if (_selectedFiles.isNotEmpty)
                 Icon(Icons.check_circle, color: Colors.green, size: 20),
             ],
           ),
           SizedBox(height: 12),
-          if (_selectedFile != null && _selectedFile!.path.isNotEmpty)
+
+          // 显示已选择的文件列表
+          if (_selectedFiles.isNotEmpty)
             Column(
               children: [
-                if (_isImageFile(_selectedFile!.path))
-                  Image.file(_selectedFile!, height: 100, width: 100, fit: BoxFit.cover),
+                ..._selectedFiles.asMap().entries.map((entry) {
+                  int index = entry.key;
+                  File file = entry.value;
+                  return _buildFileItem(file, index);
+                }).toList(),
                 SizedBox(height: 8),
-                Text(
-                  '已选择: ${_getFileName(_selectedFile!.path)}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-                SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: _selectFile,
-                      icon: Icon(Icons.change_circle, size: 16),
-                      label: Text('更换'),
-                      style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _selectedFile = null;
-                        });
-                      },
-                      icon: Icon(Icons.delete, size: 16, color: Colors.red),
-                      label: Text('移除', style: TextStyle(color: Colors.red)),
-                      style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        side: BorderSide(color: Colors.red),
-                      ),
-                    ),
-                  ],
-                ),
               ],
+            ),
+
+          // 选择文件按钮
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _selectFiles,
+                  icon: Icon(Icons.add_photo_alternate),
+                  label: Text('添加文件'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[50],
+                    foregroundColor: Colors.blue,
+                  ),
+                ),
+              ),
+              if (_selectedFiles.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8.0),
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _selectedFiles.clear();
+                      });
+                    },
+                    icon: Icon(Icons.clear_all, size: 16, color: Colors.red),
+                    label: Text('清空全部', style: TextStyle(color: Colors.red)),
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      side: BorderSide(color: Colors.red),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+          // 提示信息
+          if (_selectedFiles.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Text(
+                '可选，最多可上传5个文件',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFileItem(File file, int index) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          // 文件预览
+          if (_isImageFile(file.path))
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(4),
+                image: DecorationImage(
+                  image: FileImage(file),
+                  fit: BoxFit.cover,
+                ),
+              ),
             )
           else
-            ElevatedButton.icon(
-              onPressed: _selectFile,
-              icon: Icon(Icons.attach_file),
-              label: Text('选择文件'),
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Icon(Icons.insert_drive_file, color: Colors.grey[600]),
             ),
+
+          SizedBox(width: 12),
+
+          // 文件信息
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _getFileName(file.path),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                SizedBox(height: 2),
+                Text(
+                  '${_getFileSize(file)}',
+                  style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+
+          // 删除按钮
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _selectedFiles.removeAt(index);
+              });
+            },
+            icon: Icon(Icons.delete, size: 18, color: Colors.red),
+            padding: EdgeInsets.zero,
+            constraints: BoxConstraints(),
+          ),
         ],
       ),
     );
@@ -318,19 +401,24 @@ class _TaskReportViewState extends State<TaskReportView> {
     );
   }
 
-  Future<void> _selectFile() async {
+  Future<void> _selectFiles() async {
     try {
       final ImagePicker picker = ImagePicker();
-      final XFile? selectedXFile = await picker.pickImage(
-        source: ImageSource.gallery,
+      final List<XFile> selectedXFiles = await picker.pickMultiImage(
         maxWidth: 1920,
         maxHeight: 1080,
         imageQuality: 85,
       );
 
-      if (selectedXFile != null && selectedXFile.path.isNotEmpty) {
+      if (selectedXFiles.isNotEmpty) {
+        // 检查文件数量限制
+        if (_selectedFiles.length + selectedXFiles.length > 5) {
+          _showError('最多只能上传5个文件');
+          return;
+        }
+
         setState(() {
-          _selectedFile = File(selectedXFile.path);
+          _selectedFiles.addAll(selectedXFiles.map((xfile) => File(xfile.path)).toList());
         });
       }
     } catch (e) {
@@ -395,7 +483,7 @@ class _TaskReportViewState extends State<TaskReportView> {
     try {
       await TaskReportService.createTaskReport(
         taskId: widget.task.taskId,
-        file: _selectedFile,
+        files: _selectedFiles, // 传递文件列表
         location: _currentPosition!,
         content: _contentController.text,
         address: _locationAddress,
@@ -428,6 +516,17 @@ class _TaskReportViewState extends State<TaskReportView> {
 
   String _getFileName(String filePath) {
     return filePath.split('/').last;
+  }
+
+  String _getFileSize(File file) {
+    final sizeInBytes = file.lengthSync();
+    if (sizeInBytes < 1024) {
+      return '${sizeInBytes}B';
+    } else if (sizeInBytes < 1024 * 1024) {
+      return '${(sizeInBytes / 1024).toStringAsFixed(1)}KB';
+    } else {
+      return '${(sizeInBytes / (1024 * 1024)).toStringAsFixed(1)}MB';
+    }
   }
 
   void _showError(String message) {

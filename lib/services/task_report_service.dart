@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'auth_service.dart';
 import '../models/task_report.dart';
 import '../config/app_config.dart';
+import 'package:http_parser/http_parser.dart';
 
 class TaskReportService {
   static final String baseUrl = AppConfig.baseUrl;
@@ -63,10 +64,10 @@ class TaskReportService {
     }
   }
 
-  // 创建任务报告
+// 创建任务报告
   static Future<bool> createTaskReport({
     required String taskId,
-    File? file,
+    List<File>? files, // 改为接收文件列表
     required Position location,
     required String content,
     String? address,
@@ -92,6 +93,7 @@ class TaskReportService {
       print('📍 位置: ${location.latitude}, ${location.longitude}');
       print('📝 内容: $content');
       print('🏠 地址: $finalAddress');
+      print('📎 附件数量: ${files?.length ?? 0}');
 
       var request = http.MultipartRequest(
           'POST',
@@ -106,10 +108,27 @@ class TaskReportService {
         'content': content,
         'address': finalAddress,
         'reporter_id': currentUserId.toString(),
-        'attachments': '',
       });
 
       print('📋 请求字段: ${request.fields}');
+
+      // 添加多个文件
+      if (files != null && files.isNotEmpty) {
+        for (int i = 0; i < files.length; i++) {
+          final file = files[i];
+          final fileExtension = file.path.split('.').last.toLowerCase();
+          final mimeType = _getMimeType(fileExtension);
+
+          final multipartFile = await http.MultipartFile.fromPath(
+            'files', // 注意：这里使用 'files' 而不是 'file'
+            file.path,
+            contentType: mimeType != null ? MediaType.parse(mimeType) : null,
+          );
+
+          request.files.add(multipartFile);
+          print('📎 添加附件 $i: ${file.path}');
+        }
+      }
 
       final response = await request.send();
       final responseBody = await response.stream.bytesToString();
@@ -143,6 +162,40 @@ class TaskReportService {
       rethrow;
     }
   }
+
+// 根据文件扩展名获取 MIME 类型
+  static String? _getMimeType(String extension) {
+    switch (extension) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'bmp':
+        return 'image/bmp';
+      case 'webp':
+        return 'image/webp';
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'xls':
+        return 'application/vnd.ms-excel';
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'txt':
+        return 'text/plain';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+
+
 
   // 获取地理位置服务
   static Future<String> getAddressFromCoordinates(double latitude, double longitude) async {
