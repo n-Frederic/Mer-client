@@ -1,4 +1,7 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+
+import '../services/analytics_service.dart';
 
 class AnalyticsView extends StatefulWidget {
   @override
@@ -8,6 +11,7 @@ class AnalyticsView extends StatefulWidget {
 class _AnalyticsViewState extends State<AnalyticsView> with TickerProviderStateMixin {
   late AnimationController _animationController;
   String _selectedTab = 'overview';
+  late Future<List<dynamic>> _chartDataFuture;
 
   @override
   void initState() {
@@ -17,6 +21,7 @@ class _AnalyticsViewState extends State<AnalyticsView> with TickerProviderStateM
       vsync: this,
     );
     _animationController.forward();
+    _chartDataFuture = AnalyticsService.fetchChartData();
   }
 
   @override
@@ -34,7 +39,7 @@ class _AnalyticsViewState extends State<AnalyticsView> with TickerProviderStateM
       ),
       child: Column(
         children: [
-          // 标签页
+          // 标签页 (保持不变)
           Container(
             margin: EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -52,7 +57,7 @@ class _AnalyticsViewState extends State<AnalyticsView> with TickerProviderStateM
               children: [
                 _buildTabButton('overview', '概览', '📊'),
                 _buildTabButton('keywords', '关键词', '🔍'),
-                _buildTabButton('ai', 'AI分析', '🧠'),
+                _buildTabButton('ai', 'MBTI', '🧠'),
                 _buildTabButton('fortune', '运势', '🔮'),
               ],
             ),
@@ -110,47 +115,144 @@ class _AnalyticsViewState extends State<AnalyticsView> with TickerProviderStateM
   Widget _buildCurrentTabContent() {
     switch (_selectedTab) {
       case 'overview':
-        return _buildOverviewTab();
+        return KeyedSubtree(
+          key: ValueKey('overview'),
+          child: _buildOverviewTab(),
+        );
       case 'keywords':
-        return _buildKeywordsTab();
+        return KeyedSubtree(
+          key: ValueKey('keywords'),
+          child: _buildKeywordsTab(),
+        );
       case 'ai':
-        return _buildAITab();
+        return KeyedSubtree(
+          key: ValueKey('ai'),
+          child: _buildAITab(),
+        );
       case 'fortune':
-        return _buildFortuneTab();
+        return KeyedSubtree(
+          key: ValueKey('fortune'),
+          child: _buildFortuneTab(),
+        );
       default:
-        return _buildOverviewTab();
+        return KeyedSubtree(
+          key: ValueKey('overview'),
+          child: _buildOverviewTab(),
+        );
     }
   }
 
   Widget _buildOverviewTab() {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
-      child: Column(
+    return FutureBuilder<List<dynamic>>(
+      future: _chartDataFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('加载统计失败: ${snapshot.error}', style: TextStyle(color: Colors.red)));
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return Center(child: Text('本周无任务数据'));
+        }
+
+        final chartData = snapshot.data!;
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            children: [
+              _buildPieChart(chartData),
+              SizedBox(height: 16),
+              _buildHorizontalStats(chartData),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHorizontalStats(List<dynamic> chartData) {
+
+    // (辅助函数 getCount 保持不变)
+    int getCount(String statusKey) {
+      final item = chartData.firstWhere(
+            (d) => (d['status'] as String? ?? '').toLowerCase() == statusKey.toLowerCase(),
+        orElse: () => {'count': 0},
+      );
+      if (statusKey == 'completed') {
+        final itemCn = chartData.firstWhere(
+              (d) => (d['status'] as String? ?? '') == '已完成',
+          orElse: () => {'count': 0},
+        );
+        return (item['count'] as int? ?? 0) + (itemCn['count'] as int? ?? 0);
+      }
+      return (item['count'] as int? ?? 0);
+    }
+
+    int publishedCount = getCount("published");
+    int reportedCount = getCount("reported");
+    int completedCount = getCount("completed");
+
+    return Container(
+      margin: EdgeInsets.all(0), // (移除多余的外边距)
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // 统计卡片
-          Row(
-            children: [
-              Expanded(child: _buildStatCard('任务完成', '24', '本月', '📋', Color(0xFFFF6B9D))),
-              SizedBox(width: 12),
-              Expanded(child: _buildStatCard('日志记录', '156', '总计', '📝', Color(0xFF4ECDC4))),
-            ],
+          _buildStatItem(
+              '已发布',
+              publishedCount.toString(),
+              _getStatusColor("published")
           ),
-          SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _buildStatCard('工作时长', '168h', '本月', '⏰', Color(0xFFFFE66D))),
-              SizedBox(width: 12),
-              Expanded(child: _buildStatCard('效率评分', '92', '分', '⭐', Color(0xFF88D8B0))),
-            ],
+          _buildStatItem(
+              '已提交',
+              reportedCount.toString(),
+              _getStatusColor("reported")
           ),
-          SizedBox(height: 20),
+          _buildStatItem(
+              '已完成',
+              completedCount.toString(),
+              _getStatusColor("completed")
+          ),
+        ],
+      ),
+    );
+  }
 
-          // 今日洞察
-          _buildInsightCard(),
-          SizedBox(height: 20),
-
-          // 工作趋势图
-          _buildTrendChart(),
+  Widget _buildStatItem(String label, String count, Color color) {
+    return Expanded(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF666666),
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            count,
+            style: TextStyle(
+              fontSize: 36,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -203,79 +305,47 @@ class _AnalyticsViewState extends State<AnalyticsView> with TickerProviderStateM
     );
   }
 
-  Widget _buildInsightCard() {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFFFF8C42), Color(0xFFFF6B9D)],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text('✨', style: TextStyle(fontSize: 24)),
-              SizedBox(width: 12),
-              Text(
-                '今日AI洞察',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-          Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '工作效率指数：92分 📈',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  '比昨日提升8%，你今天的专注度很高！建议在上午9-11点安排重要任务，这是你的黄金时段。',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white.withOpacity(0.9),
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildTrendChart() {
+
+  Widget _buildPieChart(List<dynamic> chartData) {
+    double total = 0;
+    chartData.forEach((item) {
+      total += (item['count'] as int? ?? 0);
+    });
+    if (total == 0) {
+      // (如果总数是0, 饼图不需要显示)
+      return Container(
+        padding: EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Center(child: Text('本周无任务数据')),
+      );
+    }
+
+    // 生成饼图切片
+    final pieSections = chartData.map((item) {
+      final double value = (item['count'] as int? ?? 0).toDouble();
+      final String status = item['status'] as String? ?? '未知';
+      final double percentage = (value / total) * 100;
+
+      return PieChartSectionData(
+        color: _getStatusColor(status),
+        value: value,
+        title: '${percentage.toStringAsFixed(0)}%',
+        radius: 80,
+        titleStyle: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+          shadows: [Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 2)],
+        ),
+      );
+    }).toList();
+
     return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(24),
+      padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -288,66 +358,99 @@ class _AnalyticsViewState extends State<AnalyticsView> with TickerProviderStateM
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '📈 近7天工作趋势',
+            '本周任务状态',
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
               color: Color(0xFF333333),
             ),
           ),
-          SizedBox(height: 20),
-          Container(
-            height: 120,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                _buildChartBar('周一', 0.6, Color(0xFFFF6B9D)),
-                _buildChartBar('周二', 0.8, Color(0xFF4ECDC4)),
-                _buildChartBar('周三', 0.4, Color(0xFFFFE66D)),
-                _buildChartBar('周四', 0.9, Color(0xFF88D8B0)),
-                _buildChartBar('周五', 0.7, Color(0xFFFF8C42)),
-                _buildChartBar('周六', 0.3, Color(0xFFB8A9FF)),
-                _buildChartBar('周日', 0.2, Color(0xFFFFB3BA)),
-              ],
+          SizedBox(height: 24),
+          // 饼图
+          SizedBox(
+            height: 200,
+            child: PieChart(
+              PieChartData(
+                sections: pieSections,
+                centerSpaceRadius: 40,
+                sectionsSpace: 4,
+              ),
             ),
           ),
+          SizedBox(height: 24)
         ],
       ),
     );
   }
 
-  Widget _buildChartBar(String label, double value, Color color) {
-    return Expanded(
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 4),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            AnimatedContainer(
-              duration: Duration(milliseconds: 800),
-              height: value * 80,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                color: Color(0xFF666666),
-              ),
-            ),
-          ],
+  Widget _buildStatusCards(List<dynamic> chartData) {
+
+    // 辅助函数：安全地从图表数据中获取计数值
+    int getCount(String statusKey) {
+      final item = chartData.firstWhere(
+            (d) => (d['status'] as String? ?? '').toLowerCase() == statusKey.toLowerCase(),
+        orElse: () => {'count': 0},
+      );
+      // (我们也检查 '已完成' 这个中文键, 以防万一)
+      if (statusKey == 'completed') {
+        final itemCn = chartData.firstWhere(
+              (d) => (d['status'] as String? ?? '') == '已完成',
+          orElse: () => {'count': 0},
+        );
+        return (item['count'] as int? ?? 0) + (itemCn['count'] as int? ?? 0);
+      }
+      return (item['count'] as int? ?? 0);
+    }
+
+    // 获取 3 种状态的计数值
+    int publishedCount = getCount("published");
+    int reportedCount = getCount("reported");
+    int completedCount = getCount("completed"); // (已包含 "已完成")
+
+    return Column(
+      children: [
+        _buildStatCard(
+            '已发布',
+            publishedCount.toString(),
+            'Published',
+            '📋',
+            _getStatusColor("published")
         ),
-      ),
+        SizedBox(height: 12),
+        _buildStatCard(
+            '已提交',
+            reportedCount.toString(),
+            'Reported',
+            '📝',
+            _getStatusColor("reported")
+        ),
+        SizedBox(height: 12),
+        _buildStatCard(
+            '已完成',
+            completedCount.toString(),
+            'Completed',
+            '✅',
+            _getStatusColor("completed")
+        ),
+      ],
     );
   }
 
+  Color _getStatusColor(String status) {
+    // (将你 API 返回的 status 字符串映射为颜色)
+    switch (status.toLowerCase()) {
+      case 'published':
+        return Color(0xFFFF8C42); // 橙色
+      case 'reported':
+        return Colors.purple; // 紫色
+      case 'completed':
+        return Color(0xFF88D8B0); // 绿色
+      default:
+        return Colors.grey;
+    }
+  }
   Widget _buildKeywordsTab() {
     final keywords = [
       {'word': '项目', 'count': 25, 'trend': 'up'},
@@ -436,6 +539,8 @@ class _AnalyticsViewState extends State<AnalyticsView> with TickerProviderStateM
       ),
     );
   }
+
+
 
   Widget _buildKeywordItem(Map<String, dynamic> keyword) {
     Color trendColor = keyword['trend'] == 'up'
