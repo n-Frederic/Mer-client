@@ -729,18 +729,9 @@ class _AnalyticsViewState extends State<AnalyticsView> with TickerProviderStateM
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '🎯 本周运势指引',
+                            analysis,
                             style: TextStyle(
                               fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          SizedBox(height: 12),
-                          Text(
-                            analysis, // 【使用真实数据】
-                            style: TextStyle(
-                              fontSize: 14,
                               color: Colors.white.withOpacity(0.9),
                               height: 1.5,
                             ),
