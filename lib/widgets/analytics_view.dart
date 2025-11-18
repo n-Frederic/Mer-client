@@ -12,6 +12,9 @@ class _AnalyticsViewState extends State<AnalyticsView> with TickerProviderStateM
   late AnimationController _animationController;
   String _selectedTab = 'overview';
   late Future<List<dynamic>> _chartDataFuture;
+  late Future<Map<String, dynamic>> _summaryFuture;
+  late Future<Map<String, dynamic>> _personalityFuture;
+  late Future<Map<String, dynamic>> _fortuneFuture;
 
   @override
   void initState() {
@@ -22,6 +25,9 @@ class _AnalyticsViewState extends State<AnalyticsView> with TickerProviderStateM
     );
     _animationController.forward();
     _chartDataFuture = AnalyticsService.fetchChartData();
+    _summaryFuture = AnalyticsService.fetchSummary();
+    _personalityFuture = AnalyticsService.fetchPersonality();
+    _fortuneFuture = AnalyticsService.fetchFortune();
   }
 
   @override
@@ -258,54 +264,42 @@ class _AnalyticsViewState extends State<AnalyticsView> with TickerProviderStateM
     );
   }
 
-  Widget _buildStatCard(String title, String value, String subtitle, String emoji, Color color) {
+
+  Widget _buildKeywordItem(Map<String, dynamic> keyword) {
+
+    final String term = keyword['term'] as String? ?? '...';
+    final int count = keyword['count'] as int? ?? 0;
+
     return Container(
-      padding: EdgeInsets.all(20),
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
+        color: Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
+      child: Row(
         children: [
-          Text(emoji, style: TextStyle(fontSize: 32)),
-          SizedBox(height: 12),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: color,
+          Expanded(
+            child: Text(
+              term, // (使用 'term')
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF333333),
+              ),
             ),
           ),
-          SizedBox(height: 4),
           Text(
-            title,
+            '$count 次', // (使用 'count')
             style: TextStyle(
               fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF333333),
-            ),
-          ),
-          Text(
-            subtitle,
-            style: TextStyle(
-              fontSize: 12,
-              color: Color(0xFF999999),
+              color: Color(0xFF666666),
             ),
           ),
         ],
       ),
     );
   }
-
-
 
   Widget _buildPieChart(List<dynamic> chartData) {
     double total = 0;
@@ -385,59 +379,6 @@ class _AnalyticsViewState extends State<AnalyticsView> with TickerProviderStateM
     );
   }
 
-  Widget _buildStatusCards(List<dynamic> chartData) {
-
-    // 辅助函数：安全地从图表数据中获取计数值
-    int getCount(String statusKey) {
-      final item = chartData.firstWhere(
-            (d) => (d['status'] as String? ?? '').toLowerCase() == statusKey.toLowerCase(),
-        orElse: () => {'count': 0},
-      );
-      // (我们也检查 '已完成' 这个中文键, 以防万一)
-      if (statusKey == 'completed') {
-        final itemCn = chartData.firstWhere(
-              (d) => (d['status'] as String? ?? '') == '已完成',
-          orElse: () => {'count': 0},
-        );
-        return (item['count'] as int? ?? 0) + (itemCn['count'] as int? ?? 0);
-      }
-      return (item['count'] as int? ?? 0);
-    }
-
-    // 获取 3 种状态的计数值
-    int publishedCount = getCount("published");
-    int reportedCount = getCount("reported");
-    int completedCount = getCount("completed"); // (已包含 "已完成")
-
-    return Column(
-      children: [
-        _buildStatCard(
-            '已发布',
-            publishedCount.toString(),
-            'Published',
-            '📋',
-            _getStatusColor("published")
-        ),
-        SizedBox(height: 12),
-        _buildStatCard(
-            '已提交',
-            reportedCount.toString(),
-            'Reported',
-            '📝',
-            _getStatusColor("reported")
-        ),
-        SizedBox(height: 12),
-        _buildStatCard(
-            '已完成',
-            completedCount.toString(),
-            'Completed',
-            '✅',
-            _getStatusColor("completed")
-        ),
-      ],
-    );
-  }
-
   Color _getStatusColor(String status) {
     // (将你 API 返回的 status 字符串映射为颜色)
     switch (status.toLowerCase()) {
@@ -451,278 +392,370 @@ class _AnalyticsViewState extends State<AnalyticsView> with TickerProviderStateM
         return Colors.grey;
     }
   }
-  Widget _buildKeywordsTab() {
-    final keywords = [
-      {'word': '项目', 'count': 25, 'trend': 'up'},
-      {'word': '学习', 'count': 18, 'trend': 'up'},
-      {'word': '团队', 'count': 15, 'trend': 'stable'},
-      {'word': '客户', 'count': 12, 'trend': 'down'},
-      {'word': '优化', 'count': 10, 'trend': 'up'},
-      {'word': '反馈', 'count': 8, 'trend': 'stable'},
-      {'word': '进展', 'count': 6, 'trend': 'up'},
-      {'word': '协作', 'count': 5, 'trend': 'stable'},
-    ];
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // 关键词云
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 8,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '🔍 关键词分析',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
-                  ),
-                ),
-                SizedBox(height: 20),
-                ...keywords.map((keyword) => _buildKeywordItem(keyword)).toList(),
-              ],
-            ),
-          ),
-          SizedBox(height: 20),
-
-          // AI生成的工作清单
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 8,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '📋 AI生成工作清单',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
-                  ),
-                ),
-                SizedBox(height: 20),
-                _buildTaskItem('继续推进项目相关工作', 85),
-                _buildTaskItem('安排团队学习分享会', 72),
-                _buildTaskItem('跟进客户反馈处理', 68),
-                _buildTaskItem('完成代码优化任务', 55),
-                _buildTaskItem('准备下周工作计划', 45),
-              ],
-            ),
+  Widget _buildSummaryCard(String summary, {bool isError = false}) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        // (如果 'ok: false', 显示灰色卡片, 否则显示 AI 渐变色)
+        gradient: isError
+            ? LinearGradient(colors: [Colors.grey[700]!, Colors.grey[800]!])
+            : LinearGradient(colors: [Color(0xFF667eea), Color(0xFF764ba2)]),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 4),
           ),
         ],
       ),
-    );
-  }
-
-
-
-  Widget _buildKeywordItem(Map<String, dynamic> keyword) {
-    Color trendColor = keyword['trend'] == 'up'
-        ? Colors.green
-        : keyword['trend'] == 'down'
-        ? Colors.red
-        : Colors.grey;
-    IconData trendIcon = keyword['trend'] == 'up'
-        ? Icons.trending_up
-        : keyword['trend'] == 'down'
-        ? Icons.trending_down
-        : Icons.trending_flat;
-
-    return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Color(0xFFFFF8E1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(
-              keyword['word'],
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF333333),
-              ),
+          Text(
+            isError ? 'ℹ️ 提示' : '🎯 本周 AI 工作总结', // (动态标题)
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
           ),
+          SizedBox(height: 16),
           Text(
-            '${keyword['count']}次',
+            summary, // (显示 "本周暂无日志..." 或 真实总结)
             style: TextStyle(
               fontSize: 14,
-              color: Color(0xFF666666),
+              color: Colors.white.withOpacity(0.9),
+              height: 1.5,
             ),
-          ),
-          SizedBox(width: 8),
-          Icon(
-            trendIcon,
-            size: 16,
-            color: trendColor,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTaskItem(String task, int importance) {
+  Widget _buildKeywordsListCard(List<dynamic> keywords) {
     return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(16),
+      width: double.infinity,
+      padding: EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Color(0xFFFFF8E1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 20,
-            height: 20,
-            decoration: BoxDecoration(
-              border: Border.all(color: Color(0xFFFF8C42), width: 2),
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              task,
-              style: TextStyle(
-                fontSize: 14,
-                color: Color(0xFF333333),
-              ),
-            ),
-          ),
-          Text(
-            '${importance}%',
-            style: TextStyle(
-              fontSize: 12,
-              color: Color(0xFFFF8C42),
-              fontWeight: FontWeight.bold,
-            ),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 4),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildAITab() {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // MBTI分析
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF667eea), Color(0xFF764ba2)],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 8,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '🧠 MBTI职场性格分析',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                SizedBox(height: 20),
-                Row(
-                  children: [
-                    _buildMBTITrait('I', '内向', true),
-                    _buildMBTITrait('E', '外向', false),
-                    _buildMBTITrait('N', '直觉', true),
-                    _buildMBTITrait('S', '感觉', false),
-                  ],
-                ),
-                SizedBox(height: 12),
-                Row(
-                  children: [
-                    _buildMBTITrait('T', '思维', true),
-                    _buildMBTITrait('F', '情感', false),
-                    _buildMBTITrait('J', '判断', true),
-                    _buildMBTITrait('P', '感知', false),
-                  ],
-                ),
-                SizedBox(height: 20),
-                Container(
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '推测类型：INTJ (建筑师)',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        '您展现出典型的INTJ特质：善于独立思考、注重长远规划、追求专业精进。在工作中表现出强烈的目标导向和系统性思维。',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white.withOpacity(0.9),
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+          Text(
+            '🔍 关键词分析',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF333333),
             ),
           ),
           SizedBox(height: 20),
 
-          // AI建议
-          ...['工作风格分析', '性格特征洞察', '核心优势识别', '发展建议'].map((title) =>
+          if (keywords.isEmpty)
+            Center(child: Text('本周无关键词', style: TextStyle(color: Colors.grey)))
+          else
+          // (遍历真实的 keywords)
+            ...keywords.map((keyword) {
+              // (确保 keyword 是 Map<String, dynamic>)
+              if (keyword is Map<String, dynamic>) {
+                return _buildKeywordItem(keyword);
+              }
+              return SizedBox.shrink();
+            }).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKeywordsTab() {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _summaryFuture, // (使用 AI 总结接口的 Future)
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('加载关键词失败: ${snapshot.error}', style: TextStyle(color: Colors.red)));
+        }
+        if (!snapshot.hasData) {
+          return Center(child: Text('未找到关键词数据'));
+        }
+
+        // (API 成功返回数据)
+        final Map<String, dynamic> data = snapshot.data!;
+        final bool ok = data['ok'] as bool? ?? false;
+        final String summary = data['summary'] as String? ?? 'AI 总结加载失败';
+        final List<dynamic> keywords = data['keywords'] as List<dynamic>? ?? [];
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            children: [
+              _buildSummaryCard(summary, isError: !ok),
+              SizedBox(height: 20),
+              // (如果 ok: true 且有关键词, 才显示关键词列表)
+              if (ok && keywords.isNotEmpty)
+                _buildKeywordsListCard(keywords)
+              else if (ok && keywords.isEmpty)
+                Center(child: Text('本周无关键词'))
+              else
+                SizedBox.shrink(), // (如果 ok: false, 不显示关键词)
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+
+  Widget _buildAITab() {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _personalityFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('加载 MBTI 失败: ${snapshot.error}', style: TextStyle(color: Colors.red)));
+        }
+        if (!snapshot.hasData) {
+          return Center(child: Text('无法生成性格分析'));
+        }
+
+        final data = snapshot.data!;
+        final String type = data['type'] as String? ?? '????';
+        final List<dynamic> breakdown = data['breakdown'] as List<dynamic>? ?? [];
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // 1. MBTI 结果卡片
               Container(
                 width: double.infinity,
-                margin: EdgeInsets.only(bottom: 16),
+                padding: EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '🧠 MBTI 职场性格分析',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    SizedBox(height: 20),
+
+                    // 第一行：I N T J
+                    Row(children: [
+                      _buildMBTITrait('I', '内向', type.contains('I')),
+                      _buildMBTITrait('N', '直觉', type.contains('N')),
+                      _buildMBTITrait('T', '思维', type.contains('T')),
+                      _buildMBTITrait('J', '判断', type.contains('J')),
+                    ]),
+                    SizedBox(height: 12),
+                    // 第二行：E S F P
+                    Row(children: [
+                      _buildMBTITrait('E', '外向', type.contains('E')),
+                      _buildMBTITrait('S', '实感', type.contains('S')),
+                      _buildMBTITrait('F', '情感', type.contains('F')),
+                      _buildMBTITrait('P', '感知', type.contains('P')),
+                    ]),
+
+                    SizedBox(height: 20),
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(12)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('推测类型：$type', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                          SizedBox(height: 8),
+                          Text(
+                            data['analysisSummary'] as String? ?? '基于您的工作日志分析得出的性格倾向。',
+                            style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.9), height: 1.4),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 20),
+
+              // 2. 详细分析列表
+              if (breakdown.isEmpty)
+                Center(child: Text('暂无详细分析', style: TextStyle(color: Colors.grey)))
+              else
+                ...breakdown.map((item) {
+                  if (item is Map<String, dynamic>) {
+                    return Container(
+                      width: double.infinity,
+                      margin: EdgeInsets.only(bottom: 16),
+                      padding: EdgeInsets.all(20),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))]),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${item['dimension']} (${item['type']})',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF333333)),
+                          ),
+                          SizedBox(height: 12),
+                          Text(
+                            item['description'] as String? ?? '',
+                            style: TextStyle(fontSize: 14, color: Color(0xFF666666), height: 1.5),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return SizedBox.shrink();
+                }).toList(),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMBTITrait(String trait, String name, bool active) {
+    return Expanded(
+      child: Container(
+        margin: EdgeInsets.symmetric(horizontal: 4),
+        padding: EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: active ? Colors.white.withOpacity(0.3) : Colors.white.withOpacity(0.05), // (非激活时更透明)
+          borderRadius: BorderRadius.circular(8),
+          border: active ? Border.all(color: Colors.white, width: 1) : null, // (激活时加边框)
+        ),
+        child: Column(
+          children: [
+            Text(trait, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: active ? Colors.white : Colors.white60)),
+            Text(name, style: TextStyle(fontSize: 12, color: active ? Colors.white : Colors.white60)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFortuneTab() {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _fortuneFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('加载运势失败: ${snapshot.error}', style: TextStyle(color: Colors.red)));
+        }
+        if (!snapshot.hasData) {
+          return Center(child: Text('无法获取运势数据'));
+        }
+
+        final data = snapshot.data!;
+        final String analysis = data['analysis'] as String? ?? '暂无分析';
+        final Map<String, dynamic> suggestion = data['suggestion'] as Map<String, dynamic>? ?? {};
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // 1. 运势分析卡片
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 8,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Text('🔮', style: TextStyle(fontSize: 40)),
+                    SizedBox(height: 16),
+                    Text(
+                      '职场运势解析',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      '基于 AI 的智能分析',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white.withOpacity(0.8),
+                      ),
+                    ),
+                    SizedBox(height: 24),
+
+                    // (移除了之前的 4 个指标行，因为 API 只返回了整体分析)
+
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '🎯 本周运势指引',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          SizedBox(height: 12),
+                          Text(
+                            analysis, // 【使用真实数据】
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.white.withOpacity(0.9),
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 20),
+
+              // 2. 幸运建议卡片
+              Container(
+                width: double.infinity,
                 padding: EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -739,190 +772,26 @@ class _AnalyticsViewState extends State<AnalyticsView> with TickerProviderStateM
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title,
+                      '🍀 今日幸运建议',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF333333),
                       ),
                     ),
-                    SizedBox(height: 12),
-                    Text(
-                      _getAIInsightContent(title),
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF666666),
-                        height: 1.5,
-                      ),
-                    ),
+                    SizedBox(height: 16),
+                    // 【使用真实数据】
+                    _buildLuckyItem('幸运颜色', suggestion['color']?.toString() ?? '未知', '提升气场'),
+                    _buildLuckyItem('幸运时间', suggestion['time']?.toString() ?? '未知', '高效时刻'),
+                    _buildLuckyItem('幸运方位', suggestion['direction']?.toString() ?? '未知', '能量聚集'),
+                    _buildLuckyItem('幸运数字', suggestion['number']?.toString() ?? '未知', '开启好运'),
                   ],
                 ),
               ),
-          ).toList(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMBTITrait(String trait, String name, bool active) {
-    return Expanded(
-      child: Container(
-        margin: EdgeInsets.symmetric(horizontal: 4),
-        padding: EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: active ? Colors.white.withOpacity(0.3) : Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: [
-            Text(
-              trait,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            Text(
-              name,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFortuneTab() {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // 职场运势
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF667eea), Color(0xFF764ba2)],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 8,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Text('🔮', style: TextStyle(fontSize: 40)),
-                SizedBox(height: 16),
-                Text(
-                  '职场运势解析',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  '基于日志关键词的智能分析',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white.withOpacity(0.8),
-                  ),
-                ),
-                SizedBox(height: 24),
-                Row(
-                  children: [
-                    _buildFortuneItem('⭐', '事业运', '旺盛'),
-                    _buildFortuneItem('🌟', '学习运', '上升'),
-                  ],
-                ),
-                SizedBox(height: 12),
-                Row(
-                  children: [
-                    _buildFortuneItem('💫', '人际运', '平稳'),
-                    _buildFortuneItem('✨', '创新运', '待发'),
-                  ],
-                ),
-                SizedBox(height: 24),
-                Container(
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '🎯 本周运势指引',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      SizedBox(height: 12),
-                      Text(
-                        '根据您的工作日志分析，本周您的事业运势呈上升趋势。"项目"和"学习"关键词频繁出现，表明您正处于快速成长期。建议把握机会，在技能提升方面加大投入，同时注意与团队成员的协作沟通。',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white.withOpacity(0.9),
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
-          SizedBox(height: 20),
-
-          // 幸运建议
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 8,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '🍀 今日幸运建议',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
-                  ),
-                ),
-                SizedBox(height: 16),
-                _buildLuckyItem('幸运颜色', '橙色 🧡', '穿橙色系服装有助提升工作运势'),
-                _buildLuckyItem('幸运时间', '上午9-11点', '这个时段思维最活跃，适合处理重要事务'),
-                _buildLuckyItem('幸运方位', '东南方', '在东南方向的位置工作效率更高'),
-                _buildLuckyItem('幸运数字', '7', '今天与数字7相关的事物会带来好运'),
-              ],
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 

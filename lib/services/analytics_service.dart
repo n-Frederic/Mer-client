@@ -48,4 +48,73 @@ class AnalyticsService {
       throw Exception('请求失败: $e');
     }
   }
+
+  static Future<Map<String, dynamic>> fetchPersonality() async {
+    final headers = await _getAuthHeaders();
+
+    final uri = Uri.parse('$baseUrl/analytics/personality');
+    print('AnalyticsService: [fetchPersonality] 请求: $uri');
+
+    try {
+      final response = await http.get(uri, headers: headers);
+      final String jsonString = utf8.decode(response.bodyBytes);
+      print('AnalyticsService: [fetchPersonality] 响应 (${response.statusCode}): $jsonString');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(jsonString);
+        return responseData;
+      } else {
+        throw Exception('无法加载 MBTI 分析: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('AnalyticsService: [fetchPersonality] 错误: $e');
+      throw Exception('请求失败: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>> fetchSummary() async {
+    final headers = await _getAuthHeaders();
+    final uri = Uri.parse('$baseUrl/analytics/summary');
+    print('AnalyticsService: [fetchSummary] 请求: $uri');
+
+    try {
+      final response = await http.get(uri, headers: headers);
+      final String jsonString = utf8.decode(response.bodyBytes);
+      print('AnalyticsService: [fetchSummary] 响应 (${response.statusCode}): $jsonString');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(jsonString);
+
+        return responseData;
+
+      } else {
+        throw Exception('无法加载 AI 总结: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('AnalyticsService: [fetchSummary] 错误: $e');
+      throw Exception('请求失败: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>> fetchFortune() async {
+    final headers = await _getAuthHeaders();
+    final uri = Uri.parse('$baseUrl/analytics/fortune');
+    print('AnalyticsService: [fetchFortune] 请求: $uri');
+
+    try {
+      final response = await http.get(uri, headers: headers);
+      final String jsonString = utf8.decode(response.bodyBytes);
+      print('AnalyticsService: [fetchFortune] 响应 (${response.statusCode}): $jsonString');
+
+      if (response.statusCode == 200) {
+        // (API 直接返回数据对象，例如 { "analysis": "...", "suggestion": {...} })
+        return json.decode(jsonString);
+      } else {
+        throw Exception('无法加载运势: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('AnalyticsService: [fetchFortune] 错误: $e');
+      throw Exception('请求失败: $e');
+    }
+  }
 }
