@@ -49,16 +49,9 @@ class TaskService {
         final String jsonString = utf8.decode(response.bodyBytes);
         try {
           final Map<String, dynamic> responseData = json.decode(jsonString);
-          final List<dynamic> jsonList = responseData['list'] ?? [];
 
-          final List<Task> tasks = jsonList.map((json) => Task.fromJson(json)).toList();
+          return TaskListResponse.fromJson(responseData);
 
-          return TaskListResponse(
-            tasks: tasks,
-            total: responseData['total'] ?? 0,
-            page: responseData['page'] ?? 1,
-            pageSize: responseData['pageSize'] ?? 10,
-          );
         } catch (e) {
           print('JSON解析失败，服务器返回内容: ${utf8.decode(response.bodyBytes)}');
           throw Exception('数据解析异常: $e');
@@ -202,8 +195,8 @@ class TaskService {
     }
   }
 
-  // 在 TaskService 中修改 fetchTaskAssigneesList 方法
-  static Future<List<TaskUser>> fetchTaskAssigneesList(String taskId) async {
+// 获取任务分配信息（包含指派人和被指派人）
+  static Future<Map<String, dynamic>> fetchTaskAssignmentInfo(String taskId) async {
     final authToken = await AuthService.getSavedToken();
     if (authToken == null) {
       throw Exception('用户未认证，请先登录');
@@ -220,8 +213,8 @@ class TaskService {
         },
       );
 
-      print('📥 获取任务指派者响应状态码: ${response.statusCode}');
-      print('📥 获取任务指派者响应体: ${utf8.decode(response.bodyBytes)}');
+      print('📥 获取任务分配信息响应状态码: ${response.statusCode}');
+      print('📥 获取任务分配信息响应体: ${utf8.decode(response.bodyBytes)}');
 
       if (response.statusCode == 200) {
         final String jsonString = utf8.decode(response.bodyBytes);
@@ -229,14 +222,27 @@ class TaskService {
 
         if (responseData['code'] == 200 && responseData.containsKey('data')) {
           final data = responseData['data'];
-          List<dynamic> assigneesJson = [];
 
-          // 根据实际响应结构调整
+          // 解析指派人和被指派人
+          List<TaskUser> assignees = [];
+          TaskUser? assigner;
+
+          // 解析被指派人列表
           if (data.containsKey('assignees') && data['assignees'] is List) {
-            assigneesJson = data['assignees'];
+            assignees = (data['assignees'] as List)
+                .map((json) => TaskUser.fromJson(json))
+                .toList();
           }
 
-          return assigneesJson.map((json) => TaskUser.fromJson(json)).toList();
+          // 解析指派人
+          if (data.containsKey('assigner') && data['assigner'] is Map) {
+            assigner = TaskUser.fromJson(data['assigner']);
+          }
+
+          return {
+            'assignees': assignees,
+            'assigner': assigner,
+          };
         } else {
           throw Exception(responseData['message'] ?? '无法解析任务分配信息');
         }
@@ -246,7 +252,7 @@ class TaskService {
         throw Exception('无法加载任务分配信息，服务器响应码: ${response.statusCode}');
       }
     } catch (e) {
-      print('TaskService 捕获到原始错误 (fetchTaskAssigneesList): $e');
+      print('TaskService 捕获到原始错误 (fetchTaskAssignmentInfo): $e');
       throw Exception('获取任务分配信息失败: $e');
     }
   }

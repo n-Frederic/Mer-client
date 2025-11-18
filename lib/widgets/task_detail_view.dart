@@ -32,8 +32,9 @@ class _TaskDetailViewState extends State<TaskDetailView> {
   late Future<Map<String, dynamic>> _dataFuture;
   List<TaskReport> _taskReports = [];
   List<TaskUser> _taskAssignees = [];
+  TaskUser? _taskAssigner;
   bool _isLoadingReports = false;
-  bool _isLoadingAssignees = false;
+  bool _isLoadingAssignment = false;
 
   @override
   void initState() {
@@ -46,14 +47,14 @@ class _TaskDetailViewState extends State<TaskDetailView> {
       if (mounted) {
         setState(() {
           _isLoadingReports = true;
-          _isLoadingAssignees = true;
+          _isLoadingAssignment = true;
         });
       }
 
       _dataFuture = _loadData();
       await Future.wait([
         _loadTaskReports(),
-        _loadTaskAssignees(),
+        _loadTaskAssignmentInfo(),
       ]);
     } catch (e) {
       print('初始化数据失败: $e');
@@ -84,33 +85,35 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     }
   }
 
-  Future<void> _loadTaskAssignees() async {
+  // 统一加载任务分配信息
+  Future<void> _loadTaskAssignmentInfo() async {
     if (mounted) {
       setState(() {
-        _isLoadingAssignees = true;
+        _isLoadingAssignment = true;
       });
     }
 
     try {
-      final assignees = await TaskService.fetchTaskAssigneesList(widget.taskId);
+      final assignmentInfo = await TaskService.fetchTaskAssignmentInfo(widget.taskId);
 
       if (mounted) {
         setState(() {
-          _taskAssignees = assignees;
-          _isLoadingAssignees = false;
+          _taskAssignees = assignmentInfo['assignees'] ?? [];
+          _taskAssigner = assignmentInfo['assigner'];
+          _isLoadingAssignment = false;
         });
       }
     } catch (e) {
-      print('加载任务指派者失败: $e');
+      print('加载任务分配信息失败: $e');
       if (mounted) {
         setState(() {
           _taskAssignees = [];
-          _isLoadingAssignees = false;
+          _taskAssigner = null;
+          _isLoadingAssignment = false;
         });
       }
     }
   }
-
   Future<void> _loadTaskReports() async {
     if (mounted) {
       setState(() {
@@ -142,11 +145,11 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     setState(() {
       _dataFuture = _loadData();
       _isLoadingReports = true;
-      _isLoadingAssignees = true;
+      _isLoadingAssignment = true;
     });
     await Future.wait([
       _loadTaskReports(),
-      _loadTaskAssignees(),
+      _loadTaskAssignmentInfo(),
     ]);
   }
 
@@ -249,7 +252,15 @@ class _TaskDetailViewState extends State<TaskDetailView> {
   }
 
   bool _canSubmitReport(Role role, Task task, String currentUserId) {
-    return _taskAssignees.any((assignee) => assignee.userId == currentUserId);
+    // 检查当前用户是否在被指派人列表中
+    final isAssignee = _taskAssignees.any((assignee) => assignee.userId == currentUserId);
+
+    print('🔍 检查提交报告权限:');
+    print('   当前用户ID: $currentUserId');
+    print('   被指派人列表: ${_taskAssignees.map((e) => '${e.name}(${e.userId})').toList()}');
+    print('   是否有提交权限: $isAssignee');
+
+    return isAssignee;
   }
 
   bool _canApproveReport(Task task, Role currentUserRole, String currentUserId) {
@@ -259,20 +270,22 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     print('   用户角色ID: ${currentUserRole.roleId}');
     print('   用户角色名称: ${currentUserRole.name}');
     print('   任务状态: ${task.status}');
+    print('   指派人ID: ${_taskAssigner?.userId}');
+    print('   指派人姓名: ${_taskAssigner?.name}');
 
     // 检查是否是任务创建者
     final isCreator = task.creator?.userId == currentUserId;
     // 检查是否是管理员（roleId == 5）
     final isAdmin = currentUserRole.roleId == 5;
     // 检查是否是指派人
-    final isAssignee = _taskAssignees.any((assignee) => assignee.userId == currentUserId);
+    final isAssigner = _taskAssigner?.userId == currentUserId;
 
     print('   是否是创建者: $isCreator');
     print('   是否是管理员: $isAdmin');
-    print('   是否是指派人: $isAssignee');
-    print('   是否有审批权限: ${isCreator || isAdmin || isAssignee}');
+    print('   是否是指派人: $isAssigner');
+    print('   是否有审批权限: ${isCreator || isAdmin || isAssigner}');
 
-    return isCreator || isAdmin || isAssignee;
+    return isCreator || isAdmin || isAssigner;
   }
 
   Widget _buildSubmitReportButton(Task task) {
@@ -521,31 +534,77 @@ class _TaskDetailViewState extends State<TaskDetailView> {
       children: [
         Row(
           children: [
-            Text('协作成员', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF333333))),
+            Text('任务分配', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF333333))),
             SizedBox(width: 8),
-            if (_isLoadingAssignees)
+            if (_isLoadingAssignment)
               SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
           ],
         ),
         SizedBox(height: 12),
-        if (_isLoadingAssignees)
+
+        if (_isLoadingAssignment)
           Center(child: CircularProgressIndicator())
-        else if (_taskAssignees.isEmpty)
-          Text('暂无协作成员', style: TextStyle(color: Color(0xFF666666)))
+        else if (_taskAssigner == null && _taskAssignees.isEmpty)
+          Text('暂无分配信息', style: TextStyle(color: Color(0xFF666666)))
         else
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _taskAssignees.map((assignee) => Chip(
-              label: Text(assignee.name, style: TextStyle(fontSize: 12)),
-              avatar: CircleAvatar(
-                child: Text(assignee.name.isNotEmpty ? assignee.name[0] : '?'),
-                backgroundColor: Colors.blue[100],
-              ),
-              backgroundColor: Colors.white,
-              elevation: 2,
-            )).toList(),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 显示指派人
+              if (_taskAssigner != null) ...[
+                _buildAssignmentSection('指派人', [_taskAssigner!]),
+                SizedBox(height: 16),
+              ],
+
+              // 显示被指派人
+              if (_taskAssignees.isNotEmpty)
+                _buildAssignmentSection('被指派人', _taskAssignees),
+            ],
           ),
+      ],
+    );
+  }
+
+  Widget _buildAssignmentSection(String title, List<TaskUser> users) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF666666),
+          ),
+        ),
+        SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: users.map((user) => Chip(
+            label: Text(
+              user.name,
+              style: TextStyle(fontSize: 12),
+            ),
+            avatar: CircleAvatar(
+              backgroundColor: title == '指派人' ? Color(0xFFFF8C42) : Colors.blue[100],
+              radius: 12,
+              child: Text(
+                user.name.isNotEmpty ? user.name[0] : '?',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: title == '指派人' ? Colors.white : Colors.blue,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            backgroundColor: Colors.white,
+            elevation: 2,
+            side: BorderSide(
+              color: title == '指派人' ? Color(0xFFFF8C42).withOpacity(0.3) : Colors.blue.withOpacity(0.3),
+            ),
+          )).toList(),
+        ),
       ],
     );
   }
@@ -832,15 +891,54 @@ class _TaskDetailViewState extends State<TaskDetailView> {
             padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
             child: Column(
               children: [
-                _buildDetailRow(icon: Icons.person_outline, title: '创建者', value: loadedTask.creator?.name ?? '未知', iconColor: Color(0xFF4ECDC4)),
+                _buildDetailRow(
+                    icon: Icons.person_outline,
+                    title: '创建者',
+                    value: loadedTask.creator?.name ?? '未知',
+                    iconColor: Color(0xFF4ECDC4)
+                ),
                 Divider(height: 1),
-                _buildDetailRow(icon: Icons.flag_outlined, title: '优先级', value: loadedTask.priority.sqlValue, iconColor: Color(0xFFFF6B9D)),
+                _buildDetailRow(
+                    icon: Icons.person_add,
+                    title: '指派人',
+                    value: _taskAssigner?.name ?? '未指定',
+                    iconColor: Color(0xFFFF8C42)
+                ),
                 Divider(height: 1),
-                _buildDetailRow(icon: Icons.play_arrow_outlined, title: '开始时间', value: _formatTaskDate(loadedTask.startAt), iconColor: Color(0xFF88D8B0)),
+                _buildDetailRow(
+                    icon: Icons.people_outline,
+                    title: '被指派人',
+                    value: _taskAssignees.isEmpty ? '无' : '${_taskAssignees.length}人',
+                    iconColor: Colors.blue
+                ),
                 Divider(height: 1),
-                _buildDetailRow(icon: Icons.timer_outlined, title: '截止时间', value: _formatTaskDate(loadedTask.dueAt), iconColor: Color(0xFFFF8C42)),
+                _buildDetailRow(
+                    icon: Icons.flag_outlined,
+                    title: '优先级',
+                    value: loadedTask.priority.sqlValue,
+                    iconColor: Color(0xFFFF6B9D)
+                ),
                 Divider(height: 1),
-                _buildDetailRow(icon: Icons.add_circle_outline, title: '创建时间', value: _formatTaskDate(loadedTask.createdAt), iconColor: Color(0xFF999999)),
+                _buildDetailRow(
+                    icon: Icons.play_arrow_outlined,
+                    title: '开始时间',
+                    value: _formatTaskDate(loadedTask.startAt),
+                    iconColor: Color(0xFF88D8B0)
+                ),
+                Divider(height: 1),
+                _buildDetailRow(
+                    icon: Icons.timer_outlined,
+                    title: '截止时间',
+                    value: _formatTaskDate(loadedTask.dueAt),
+                    iconColor: Color(0xFFFF8C42)
+                ),
+                Divider(height: 1),
+                _buildDetailRow(
+                    icon: Icons.add_circle_outline,
+                    title: '创建时间',
+                    value: _formatTaskDate(loadedTask.createdAt),
+                    iconColor: Color(0xFF999999)
+                ),
               ],
             ),
           ),

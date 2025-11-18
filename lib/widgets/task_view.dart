@@ -22,10 +22,15 @@ class _CalendarViewState extends State<CalendarView>
   late Future<Role> _roleFuture;
   late Role _currentUserRole;
   Map<String, dynamic>? _currentTask;
-  String _taskFilterMode = 'my';
+  String _currentFilter = 'my'; // 统一使用 _currentFilter
   String _taskSearchTerm = '';
-  late Future<List<Task>> _tasksFuture;
-  List<Task> _cachedTasks = [];
+
+  // 分页相关状态
+  List<Task> _allTasks = []; // 存储所有加载的任务
+  int _currentPage = 1;
+  bool _isLoading = false;
+  bool _hasMore = true;
+
   DateTime _selectedDay = DateTime.now();
 
   @override
@@ -33,19 +38,83 @@ class _CalendarViewState extends State<CalendarView>
     super.initState();
     _selectedDay = DateTime(_currentDate.year, _currentDate.month, _currentDate.day);
 
-    // 初始化任务加载
-    _tasksFuture = _fetchTasksByMode(_taskFilterMode);
-
     // 初始化角色加载
     _roleFuture = _fetchRoleById(3);
 
     _tabController = TabController(length: 2, vsync: this);
+
+    // 初始化时加载第一页任务
+    _loadTasks(reset: true);
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  // 加载任务数据
+  Future<void> _loadTasks({bool reset = false}) async {
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+      if (reset) {
+        _currentPage = 1;
+        _allTasks.clear();
+        _hasMore = true;
+      }
+    });
+
+    try {
+      TaskListResponse response;
+
+      if (_currentFilter == 'my') {
+        response = await TaskService.fetchPersonalTasks(
+          page: _currentPage,
+          pageSize: 20, // 每页加载更多任务
+        );
+      } else {
+        response = await TaskService.fetchScopedTasks(
+          page: _currentPage,
+          pageSize: 20,
+        );
+      }
+
+      setState(() {
+        if (reset) {
+          _allTasks = response.tasks;
+        } else {
+          _allTasks.addAll(response.tasks);
+        }
+        _hasMore = response.hasMore;
+        _currentPage++;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      print('加载任务失败: $e');
+      // 可以添加错误提示
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('加载任务失败: $e')),
+        );
+      }
+    }
+  }
+
+  // 刷新数据
+  Future<void> _refreshTasks() async {
+    await _loadTasks(reset: true);
+  }
+
+  // 加载更多数据
+  void _loadMore() {
+    if (_hasMore && !_isLoading) {
+      _loadTasks(reset: false);
+    }
   }
 
   Future<Role> _fetchRoleById(int roleId) async {
@@ -63,29 +132,6 @@ class _CalendarViewState extends State<CalendarView>
       });
     }
     return fetchedRole;
-  }
-
-
-  // 【关键修复】移除 userId 参数
-  Future<List<Task>> _fetchTasksByMode(String mode) async {
-    try {
-      TaskListResponse response;
-
-      if (mode == 'my') {
-        response = await TaskService.fetchPersonalTasks();
-      } else {
-        response = await TaskService.fetchScopedTasks();
-      }
-      if (mounted) {
-        setState(() {
-          _cachedTasks = response.tasks;
-        });
-      }
-      return response.tasks;
-    } catch (e) {
-      print('Error fetching tasks (mode: $mode): $e');
-      rethrow;
-    }
   }
 
   bool _isSameDate(DateTime a, DateTime b) {
@@ -426,8 +472,8 @@ class _CalendarViewState extends State<CalendarView>
     final date = DateTime(_currentDate.year, _currentDate.month, dayNumber);
     final dateOnly = DateTime(date.year, date.month, date.day);
 
-    // 【修改】显示任务周期内的所有日期
-    final List<Task> dailyEvents = _cachedTasks.where((task) {
+    // 使用 _allTasks 而不是 _cachedTasks
+    final List<Task> dailyEvents = _allTasks.where((task) {
       // 跳过已完成的任务
       if (task.status == TaskStatus.completed) return false;
 
@@ -517,8 +563,8 @@ class _CalendarViewState extends State<CalendarView>
   }
 
   Widget _buildSelectedDayTasks() {
-
-    final selectedDayTasks = _cachedTasks.where((task) {
+    // 使用 _allTasks 而不是 _cachedTasks
+    final selectedDayTasks = _allTasks.where((task) {
       if (task.status == TaskStatus.completed) return false;
 
       final selectedDayOnly = DateTime(_selectedDay.year, _selectedDay.month, _selectedDay.day);
@@ -611,8 +657,8 @@ class _CalendarViewState extends State<CalendarView>
   Widget _buildDayView() {
     final today = DateTime.now();
 
-    // 【修改】日视图显示今天在任务周期内的所有任务
-    final todayTasks = _cachedTasks.where((task) {
+    // 使用 _allTasks 而不是 _cachedTasks
+    final todayTasks = _allTasks.where((task) {
       if (task.status == TaskStatus.completed) return false;
 
       final todayOnly = DateTime(today.year, today.month, today.day);
@@ -710,6 +756,7 @@ class _CalendarViewState extends State<CalendarView>
       ),
     );
   }
+
   // 周视图 - 显示一周任务
   Widget _buildWeekView() {
     final startOfWeek = _currentDate.subtract(Duration(days: _currentDate.weekday - 1));
@@ -752,8 +799,8 @@ class _CalendarViewState extends State<CalendarView>
 
           // 每日任务
           ...weekDays.map((day) {
-            // 【修改】周视图也显示任务周期内的所有日期
-            final dayTasks = _cachedTasks.where((task) {
+            // 使用 _allTasks 而不是 _cachedTasks
+            final dayTasks = _allTasks.where((task) {
               if (task.status == TaskStatus.completed) return false;
 
               final dayOnly = DateTime(day.year, day.month, day.day);
@@ -862,6 +909,7 @@ class _CalendarViewState extends State<CalendarView>
       ),
     );
   }
+
   // 周视图任务项
   Widget _buildWeekTaskItem(Task task) {
     return GestureDetector(
@@ -1166,14 +1214,17 @@ class _CalendarViewState extends State<CalendarView>
     return weekdays[weekday % 7];
   }
 
+  // 修改筛选按钮方法
   Widget _buildFilterButton(String mode, String label) {
-    final isSelected = _taskFilterMode == mode;
+    final isSelected = _currentFilter == mode;
     return GestureDetector(
       onTap: () {
-        setState(() {
-          _taskFilterMode = mode;
-          _tasksFuture = _fetchTasksByMode(_taskFilterMode);
-        });
+        if (_currentFilter != mode) {
+          setState(() {
+            _currentFilter = mode;
+          });
+          _loadTasks(reset: true);
+        }
       },
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
@@ -1232,304 +1283,135 @@ class _CalendarViewState extends State<CalendarView>
           ),
         ),
         Expanded(
-          child: FutureBuilder<List<Task>>(
-            future: _tasksFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return Center(child: CircularProgressIndicator());
-              }
-
-              if (snapshot.hasError) {
-                return Center(child: Text('加载任务失败: ${snapshot.error}', style: TextStyle(color: Colors.red)));
-              }
-
-              if (snapshot.hasData) {
-                List<Task> allTasks = snapshot.data!;
-                List<Task> tasksToRender = allTasks;
-
-                if (_taskSearchTerm.isNotEmpty) {
-                  final searchTerm = _taskSearchTerm.toLowerCase();
-                  tasksToRender = tasksToRender.where((task) {
-                    return task.title.toLowerCase().contains(searchTerm) ||
-                        task.description.toLowerCase().contains(searchTerm);
-                  }).toList();
-                }
-
-                tasksToRender.sort((a, b) => a.dueAt?.compareTo(b.dueAt ?? DateTime(9999)) ?? -1);
-
-                if (tasksToRender.isEmpty) {
-                  return Center(child: Text('暂无任务', style: TextStyle(color: Color(0xFF666666))));
-                }
-
-                return ListView.builder(
-                  padding: EdgeInsets.zero,
-                  itemCount: tasksToRender.length,
-                  itemBuilder: (context, index) {
-                    final task = tasksToRender[index];
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => TaskDetailView(
-                              taskId: task.taskId,
-                            ),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        padding: EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))],
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: _getStatusColor(task.status).withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Center(child: Icon(_getTaskIcon(task.status), color: _getStatusColor(task.status), size: 20)),
-                            ),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(task.title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                                  Text(
-                                    task.dueAt != null ? '截止: ${task.dueAt!.month}月${task.dueAt!.day}日' : '截止: 未设置',
-                                    style: TextStyle(fontSize: 12, color: Color(0xFF666666)),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            _buildStatusChip(task.status),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              }
-              return Container();
-            },
+          child: RefreshIndicator(
+            onRefresh: _refreshTasks,
+            child: _buildTaskList(),
           ),
         ),
       ],
     );
   }
 
+  Widget _buildTaskList() {
+    // 过滤和搜索逻辑
+    List<Task> filteredTasks = _allTasks.where((task) {
+      if (_taskSearchTerm.isEmpty) return true;
 
-  Future<void> _handleCheckIn() async {
-    // ⚠️ 注意：此函数在 Task_view.dart 中，因此它只能触发刷新，无法直接获取正在打卡的 Task 对象。
-    // 真正的逻辑应该在 TaskDetailView 中。这里我们只修复错误并设置刷新机制。
+      final searchTerm = _taskSearchTerm.toLowerCase();
+      return task.title.toLowerCase().contains(searchTerm) ||
+          (task.description?.toLowerCase().contains(searchTerm) ?? false);
+    }).toList();
 
-    showDialog(
-      context: context,
-      builder: (context) {
-        File? capturedImage;
-        Position? currentPosition;
-        String? locationAddress;
-        final noteController = TextEditingController();
+    // 排序逻辑
+    filteredTasks.sort((a, b) => a.dueAt?.compareTo(b.dueAt ?? DateTime(9999)) ?? -1);
 
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final double maxHeight = MediaQuery
-                .of(context)
-                .size
-                .height * 0.7;
-
-            return AlertDialog(
-              title: Text('任务打卡'),
-              content: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: maxHeight),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey[300]!),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.camera_alt,
-                                    color: capturedImage != null
-                                        ? Colors.green
-                                        : Colors.grey),
-                                SizedBox(width: 8),
-                                Text('1. 拍照 *',
-                                    style:
-                                    TextStyle(fontWeight: FontWeight.w500)),
-                                Spacer(),
-                                if (capturedImage != null)
-                                  Icon(Icons.check_circle,
-                                      color: Colors.green, size: 20),
-                              ],
-                            ),
-                            SizedBox(height: 8),
-                            if (capturedImage != null)
-                              Image.file(capturedImage!, height: 100)
-                            else
-                              ElevatedButton.icon(
-                                onPressed: () async {
-                                  final ImagePicker picker = ImagePicker();
-                                  final XFile? photo = await picker.pickImage(
-                                      source: ImageSource.camera);
-                                  if (photo != null) {
-                                    setDialogState(() {
-                                      capturedImage = File(photo.path);
-                                    });
-                                  }
-                                },
-                                icon: Icon(Icons.camera_alt),
-                                label: Text('拍照'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Color(0xFFFF8C42),
-                                  foregroundColor: Colors.white,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: 12),
-                      Container(
-                        padding: EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey[300]!),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.location_on,
-                                    color: currentPosition != null
-                                        ? Colors.green
-                                        : Colors.grey),
-                                SizedBox(width: 8),
-                                Text('2. 获取位置 *',
-                                    style:
-                                    TextStyle(fontWeight: FontWeight.w500)),
-                                Spacer(),
-                                if (currentPosition != null)
-                                  Icon(Icons.check_circle,
-                                      color: Colors.green, size: 20),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      if (currentPosition != null)
-                        Text(
-                          locationAddress ??
-                              '${currentPosition!.latitude.toStringAsFixed(
-                                  4)}, ${currentPosition!.longitude
-                                  .toStringAsFixed(4)}',
-                          style: TextStyle(
-                              fontSize: 12, color: Colors.grey[600]),
-                        )
-                      else
-                        ElevatedButton.icon(
-                          onPressed: () async {
-                            try {
-                              LocationPermission permission =
-                              await Geolocator.checkPermission();
-                              if (permission ==
-                                  LocationPermission.denied) {
-                                permission =
-                                await Geolocator.requestPermission();
-                              }
-                              if (permission ==
-                                  LocationPermission.whileInUse ||
-                                  permission ==
-                                      LocationPermission.always) {
-                                Position position =
-                                await Geolocator.getCurrentPosition();
-                                setDialogState(() {
-                                  currentPosition = position;
-                                  locationAddress = '北京市朝阳区';
-                                });
-                              } else {
-                                ScaffoldMessenger.of(context)
-                                    .showSnackBar(
-                                  SnackBar(content: Text('请授予位置权限')),
-                                );
-                              }
-                            } catch (e) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('定位失败: $e')),
-                              );
-                            }
-                          },
-                          icon: Icon(Icons.location_on),
-                          label: Text('获取位置'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Color(0xFFFF8C42),
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      SizedBox(height: 16),
-                      TextField(
-                        controller: noteController,
-                        decoration: InputDecoration(
-                          labelText: '备注',
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 3,
-                      ),
-                    ],
-                  ),
-                ),
+    if (filteredTasks.isEmpty && !_isLoading) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('暂无任务', style: TextStyle(color: Color(0xFF666666))),
+            if (_taskSearchTerm.isNotEmpty)
+              TextButton(
+                onPressed: _refreshTasks,
+                child: Text('清空搜索'),
               ),
-            actions: [
+            SizedBox(height: 10),
             TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('取消'),
+              onPressed: _refreshTasks,
+              child: Text('重新加载'),
             ),
-            ElevatedButton(
-            onPressed: (capturedImage != null && currentPosition != null)
-            ? () {
-            Navigator.pop(context);
+          ],
+        ),
+      );
+    }
 
-            // ❌ 原有：_currentTask 和 _events 的本地修改逻辑已移除
-            // ✅ 新增：触发任务列表刷新，模拟 API 数据更新
-            setState(() {
-            _tasksFuture = _fetchTasksByMode(_taskFilterMode);
-            });
+    return ListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: filteredTasks.length + (_hasMore ? 1 : 0),
+      itemBuilder: (context, index) {
+        // 加载更多指示器
+        if (index == filteredTasks.length) {
+          return _buildLoadMoreIndicator();
+        }
 
-            // TODO: 未来，这里应该调用 TaskService.createCheckIn(...) API
-            // 使用 collected data: capturedImage, currentPosition, noteController.text
+        final task = filteredTasks[index];
+        return _buildTaskItem(task);
+      },
+    );
+  }
 
-            ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('打卡成功，列表已刷新')),
-            );
-            }
-                : null,
-            child: Text('完成打卡'),
-            style: ElevatedButton.styleFrom(
-            backgroundColor: Color(0xFFFF8C42),
-            foregroundColor: Colors.white,
+  Widget _buildLoadMoreIndicator() {
+    return Padding(
+      padding: EdgeInsets.all(16.0),
+      child: Center(
+        child: _isLoading
+            ? CircularProgressIndicator()
+            : _hasMore
+            ? TextButton(
+          onPressed: _loadMore,
+          child: Text('加载更多'),
+        )
+            : Text(
+          '没有更多任务了',
+          style: TextStyle(color: Color(0xFF999999)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTaskItem(Task task) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TaskDetailView(
+              taskId: task.taskId,
             ),
-            ),
-            ],
-            );
-            },
+          ),
         );
       },
+      child: Container(
+        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: _getStatusColor(task.status).withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: Icon(_getTaskIcon(task.status), color: _getStatusColor(task.status), size: 20),
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(task.title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text(
+                    task.dueAt != null
+                        ? '截止: ${task.dueAt!.month}月${task.dueAt!.day}日'
+                        : '截止: 未设置',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF666666)),
+                  ),
+                ],
+              ),
+            ),
+            _buildStatusChip(task.status),
+          ],
+        ),
+      ),
     );
   }
 }
