@@ -67,7 +67,7 @@ class TaskReportService {
 // 创建任务报告
   static Future<bool> createTaskReport({
     required String taskId,
-    List<File>? files, // 改为接收文件列表
+    List<File>? files,
     required Position location,
     required String content,
     String? address,
@@ -116,46 +116,60 @@ class TaskReportService {
       if (files != null && files.isNotEmpty) {
         for (int i = 0; i < files.length; i++) {
           final file = files[i];
-          final fileExtension = file.path.split('.').last.toLowerCase();
-          final mimeType = _getMimeType(fileExtension);
 
-          final multipartFile = await http.MultipartFile.fromPath(
-            'files', // 注意：这里使用 'files' 而不是 'file'
-            file.path,
-            contentType: mimeType != null ? MediaType.parse(mimeType) : null,
-          );
+          // 检查文件是否存在
+          if (!await file.exists()) {
+            print('⚠️ 文件不存在: ${file.path}');
+            continue;
+          }
 
-          request.files.add(multipartFile);
-          print('📎 添加附件 $i: ${file.path}');
-        }
+          try {
+            final fileExtension = file.path.split('.').last.toLowerCase();
+            final mimeType = _getMimeType(fileExtension);
+
+            final multipartFile = await http.MultipartFile.fromPath(
+              'files',
+              file.path,
+              contentType: mimeType != null ? MediaType.parse(mimeType) : null,
+              filename: 'report_${DateTime.now().millisecondsSinceEpoch}_$i.$fileExtension',
+            );
+
+            request.files.add(multipartFile);
+            print('✅ 成功添加附件 $i: ${file.path}');
+
+          } catch (e) {
+            print('❌ 添加文件失败: ${file.path}, 错误: $e');
+          }
+        }  print('📦 总共添加了 ${request.files.length} 个文件到请求中');
+      } else {
+        print('📝 没有附件需要上传');
       }
 
-      final response = await request.send();
-      final responseBody = await response.stream.bytesToString();
+      // 发送请求并处理响应
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
 
       print('📥 提交任务报告响应状态码: ${response.statusCode}');
-      print('📥 提交任务报告响应体: $responseBody');
+      print('📥 提交任务报告响应体: ${response.body}');
 
       if (response.statusCode == 200) {
-        final data = json.decode(responseBody);
+        final data = json.decode(response.body);
         if (data['ok'] == true) {
           print('✅ 报告创建成功');
           return true;
         } else {
-          final errorMsg = data['error'] ?? data['message'] ?? '未知错误';
-          throw Exception('服务器返回成功但ok字段为false: $errorMsg');
+          final errorMsg = data['message'] ?? '未知错误';
+          throw Exception('服务器返回错误: $errorMsg');
         }
-      } else if (response.statusCode == 400) {
-        String errorDetail = '请求参数错误';
-        try {
-          final errorData = json.decode(responseBody);
-          errorDetail = errorData['error'] ?? errorData['message'] ?? '未知错误';
-        } catch (e) {
-          errorDetail = responseBody;
-        }
-        throw Exception('请求参数错误: $errorDetail');
       } else {
-        throw Exception('提交报告失败: ${response.statusCode} - $responseBody');
+        String errorDetail = '请求失败';
+        try {
+          final errorData = json.decode(response.body);
+          errorDetail = errorData['message'] ?? response.body;
+        } catch (e) {
+          errorDetail = response.body;
+        }
+        throw Exception('提交报告失败: ${response.statusCode} - $errorDetail');
       }
     } catch (e) {
       print('💥 提交报告失败: $e');

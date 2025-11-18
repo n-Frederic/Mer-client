@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:pandora_app/widgets/reject_reason_dialog.dart';
+import 'package:pandora_app/widgets/task_report_detail_view.dart';
 import '../models/task.dart';
 import '../models/task_report.dart';
 import '../models/role.dart';
@@ -251,7 +253,26 @@ class _TaskDetailViewState extends State<TaskDetailView> {
   }
 
   bool _canApproveReport(Task task, Role currentUserRole, String currentUserId) {
-    return task.creator?.userId == currentUserId || currentUserRole.roleId == 5;
+    print('🔍 检查审批权限:');
+    print('   任务创建者ID: ${task.creator?.userId}');
+    print('   当前用户ID: $currentUserId');
+    print('   用户角色ID: ${currentUserRole.roleId}');
+    print('   用户角色名称: ${currentUserRole.name}');
+    print('   任务状态: ${task.status}');
+
+    // 检查是否是任务创建者
+    final isCreator = task.creator?.userId == currentUserId;
+    // 检查是否是管理员（roleId == 5）
+    final isAdmin = currentUserRole.roleId == 5;
+    // 检查是否是指派人
+    final isAssignee = _taskAssignees.any((assignee) => assignee.userId == currentUserId);
+
+    print('   是否是创建者: $isCreator');
+    print('   是否是管理员: $isAdmin');
+    print('   是否是指派人: $isAssignee');
+    print('   是否有审批权限: ${isCreator || isAdmin || isAssignee}');
+
+    return isCreator || isAdmin || isAssignee;
   }
 
   Widget _buildSubmitReportButton(Task task) {
@@ -278,41 +299,74 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     );
   }
 
+  // 批阅按钮
   Widget _buildApproveRejectButtons(Task task) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Column(
       children: [
-        ElevatedButton(
-          onPressed: () => _handleApproveReport(task),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            foregroundColor: Colors.white,
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.check, size: 20),
-              SizedBox(width: 8),
-              Text('通过报告', style: TextStyle(fontSize: 16)),
-            ],
+        // 添加查看报告详情按钮
+        Container(
+          width: double.infinity,
+          margin: EdgeInsets.only(bottom: 12),
+          child: OutlinedButton.icon(
+            onPressed: () {
+              if (_taskReports.isNotEmpty) {
+                // 查看最新的报告
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => TaskReportDetailView(
+                      report: _taskReports.first,
+                      taskId: widget.taskId,
+                    ),
+                  ),
+                );
+              }
+            },
+            icon: Icon(Icons.remove_red_eye, size: 20),
+            label: Text('查看报告详情', style: TextStyle(fontSize: 16)),
+            style: OutlinedButton.styleFrom(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              side: BorderSide(color: Colors.blue),
+            ),
           ),
         ),
-        SizedBox(width: 16),
-        OutlinedButton(
-          onPressed: () => _handleRejectReport(task),
-          style: OutlinedButton.styleFrom(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            side: BorderSide(color: Colors.red),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.close, size: 20, color: Colors.red),
-              SizedBox(width: 8),
-              Text('拒绝报告', style: TextStyle(fontSize: 16, color: Colors.red)),
-            ],
-          ),
+
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton(
+              onPressed: () => _handleApproveReport(task),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check, size: 20),
+                  SizedBox(width: 8),
+                  Text('通过报告', style: TextStyle(fontSize: 16)),
+                ],
+              ),
+            ),
+            SizedBox(width: 16),
+            OutlinedButton(
+              onPressed: () => _handleRejectReport(task),
+              style: OutlinedButton.styleFrom(
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                side: BorderSide(color: Colors.red),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.close, size: 20, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('拒绝报告', style: TextStyle(fontSize: 16, color: Colors.red)),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -362,65 +416,105 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     );
   }
 
+  // 在 TaskDetailView 中修改 _buildReportItem 方法
   Widget _buildReportItem(TaskReport report) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: Colors.blue[100],
-                child: Text(
-                  report.reporterName?.isNotEmpty == true ? report.reporterName![0] : 'U',
-                  style: TextStyle(fontSize: 12, color: Colors.blue),
+    return GestureDetector(
+      onTap: () {
+        // 点击报告项查看详情
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TaskReportDetailView(
+              report: report,
+              taskId: widget.taskId,
+            ),
+          ),
+        );
+      },
+      child: Container(
+        margin: EdgeInsets.only(bottom: 12),
+        padding: EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: Colors.blue[100],
+                  child: Text(
+                    report.reporterName?.isNotEmpty == true ? report.reporterName![0] : 'U',
+                    style: TextStyle(fontSize: 12, color: Colors.blue),
+                  ),
                 ),
-              ),
-              SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(report.reporterName ?? '未知用户', style: TextStyle(fontWeight: FontWeight.w500)),
+                      Text(_formatReportTime(report.createdAt), style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
+                  ),
+                ),
+                Row(
                   children: [
-                    Text(report.reporterName ?? '未知用户', style: TextStyle(fontWeight: FontWeight.w500)),
-                    Text(_formatReportTime(report.createdAt), style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    if (report.attachments.isNotEmpty)
+                      Icon(Icons.photo_library, size: 16, color: Colors.green),
+                    SizedBox(width: 4),
+                    Icon(Icons.location_on, size: 16, color: Colors.blue),
                   ],
                 ),
+                Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+              ],
+            ),
+            SizedBox(height: 12),
+            if (report.content.isNotEmpty)
+              Text(
+                  report.content.length > 100
+                      ? '${report.content.substring(0, 100)}...'
+                      : report.content,
+                  style: TextStyle(fontSize: 14, color: Color(0xFF666666))
               ),
-              Row(
+            SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.location_on, size: 14, color: Colors.grey),
+                SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                      report.address.length > 50
+                          ? '${report.address.substring(0, 50)}...'
+                          : report.address,
+                      style: TextStyle(fontSize: 12, color: Colors.grey)
+                  ),
+                ),
+              ],
+            ),
+            if (report.attachments.isNotEmpty) ...[
+              SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
                 children: [
-                  if (report.attachments.isNotEmpty)
-                    Icon(Icons.photo_library, size: 16, color: Colors.green),
-                  SizedBox(width: 4),
-                  Icon(Icons.location_on, size: 16, color: Colors.blue),
+                  Chip(
+                    label: Text('${report.attachments.length}个附件', style: TextStyle(fontSize: 10)),
+                    backgroundColor: Colors.blue[50],
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ],
               ),
             ],
-          ),
-          SizedBox(height: 12),
-          if (report.content.isNotEmpty)
-            Text(report.content, style: TextStyle(fontSize: 14, color: Color(0xFF666666))),
-          SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(Icons.location_on, size: 14, color: Colors.grey),
-              SizedBox(width: 4),
-              Expanded(child: Text(report.address, style: TextStyle(fontSize: 12, color: Colors.grey))),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  // 其他UI组件保持不变...
   Widget _buildCollaborators() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -510,7 +604,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     );
   }
 
-  // 处理报告相关操作
+  // 处理报告相关操作 - 添加缺失的 _handleReport 方法
   Future<void> _handleReport(Task loadedTask) async {
     final result = await Navigator.push(
       context,
@@ -530,54 +624,154 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     }
   }
 
+  // 在 TaskDetailView 中优化批阅方法 - 只保留一个定义
+// 在 TaskDetailView 中优化审批方法
   Future<void> _handleApproveReport(Task task) async {
     try {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text('确认通过'),
-          content: Text('确定要通过这个工作报告吗？通过后任务将标记为完成。'),
+          title: Text('确认通过报告'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('确定要通过这个工作报告吗？'),
+              SizedBox(height: 8),
+              Text(
+                '通过后：',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text('• 任务状态将更新为"已完成"'),
+              Text('• 任务进度将达到100%'),
+              Text('• 任务将标记为完成状态'),
+            ],
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: Text('取消')),
-            ElevatedButton(onPressed: () => Navigator.pop(context, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.green), child: Text('确定通过')),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              child: Text('确定通过'),
+            ),
           ],
         ),
       );
 
       if (confirmed == true) {
+        setState(() {
+          _isLoadingReports = true;
+        });
+
         await TaskService.approveTaskReport(task.taskId);
         await _refreshData();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('报告已通过，任务标记为完成')));
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('报告已通过，任务标记为完成状态'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('操作失败: $e')));
+      print('❌ 审批报告失败: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('操作失败: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingReports = false;
+        });
+      }
     }
   }
 
   Future<void> _handleRejectReport(Task task) async {
     try {
-      final confirmed = await showDialog<bool>(
+      final reason = await showDialog<String>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: Text('确认拒绝'),
-          content: Text('确定要拒绝这个工作报告吗？拒绝后任务将返回待提交状态。'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: Text('取消')),
-            ElevatedButton(onPressed: () => Navigator.pop(context, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: Text('确定拒绝')),
-          ],
-        ),
+        builder: (context) => RejectReasonDialog(),
       );
 
-      if (confirmed == true) {
-        await TaskService.rejectTaskReport(task.taskId);
-        await _refreshData();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('报告已拒绝，任务返回待提交状态')));
+      if (reason != null) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('确认拒绝报告'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('确定要拒绝这个工作报告吗？'),
+                if (reason.isNotEmpty) ...[
+                  SizedBox(height: 8),
+                  Text('拒绝原因:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(reason, style: TextStyle(color: Colors.red)),
+                ],
+                SizedBox(height: 8),
+                Text(
+                  '拒绝后：',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text('• 任务状态将返回"已发布"'),
+                Text('• 执行人可以重新提交报告'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text('取消'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: Text('确定拒绝'),
+              ),
+            ],
+          ),
+        );
+
+        if (confirmed == true) {
+          setState(() {
+            _isLoadingReports = true;
+          });
+
+          await TaskService.rejectTaskReport(task.taskId);
+          await _refreshData();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('报告已拒绝，任务返回待提交状态${reason.isNotEmpty ? '，原因: $reason' : ''}'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('操作失败: $e')));
+      print('❌ 拒绝报告失败: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('操作失败: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingReports = false;
+        });
+      }
     }
   }
-
   // 辅助方法
   double _calculateProgress(Task task) {
     switch (task.status) {
