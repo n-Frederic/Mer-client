@@ -53,12 +53,22 @@ class NotificationService {
     final headers = await _getAuthHeaders();
     final uri = Uri.parse('$baseUrl/notifications/$notifId/read');
 
+    print('NotificationService: [markAsRead] 请求: $uri');
+
     try {
-      // PUT 请求，通常不需要 body
-      final response = await http.put(uri, headers: headers);
+
+      final response = await http.put(
+        uri,
+        headers: headers,
+        body: "{}",
+      );
+
+      final String jsonString = utf8.decode(response.bodyBytes);
+      print('NotificationService: [markAsRead] 响应 (${response.statusCode}): $jsonString');
 
       if (response.statusCode == 200) {
-        return true;
+        final responseData = json.decode(jsonString);
+        return responseData['ok'] == true;
       } else {
         print('标记已读失败: ${response.statusCode}');
         return false;
