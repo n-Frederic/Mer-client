@@ -52,6 +52,8 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                 // 1. 设置默认占位符
                 String name = '加载中...';
                 String subtitle = '...';
+                String email = '';
+                String phone = '';
 
                 if (snapshot.hasData) {
                   // 2. 加载成功: 解析数据
@@ -59,6 +61,8 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
 
                   name = userData?['name']?.toString() ?? '未知姓名';
                   subtitle = userData?['team']?.toString() ?? '潘多拉成员';
+                  email = userData?['email']?.toString() ?? '';
+                  phone = userData?['phone']?.toString() ?? '';
 
                 } else if (snapshot.hasError) {
                   // 3. 加载失败
@@ -86,7 +90,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                     children: [
                       // (头像已按你要求移除)
 
-                      // 【修改】使用动态姓名 (替换 "小兔子")
+                      // 姓名
                       Text(
                         name,
                         style: TextStyle(
@@ -95,15 +99,37 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                           color: Colors.white,
                         ),
                       ),
-                      SizedBox(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildStatItem('156', '完成任务'),
-                          _buildStatItem('89', '日志记录'),
-                          _buildStatItem('245', '工作天数'),
-                        ],
-                      ),
+                      SizedBox(height: 12),
+                      if (email.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.email_outlined, color: Colors.white70, size: 16),
+                              SizedBox(width: 6),
+                              Text(
+                                email,
+                                style: TextStyle(color: Colors.white70, fontSize: 14),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (phone.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.phone_android, color: Colors.white70, size: 16),
+                              SizedBox(width: 6),
+                              Text(
+                                phone,
+                                style: TextStyle(color: Colors.white70, fontSize: 14),
+                              ),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
                 );
@@ -179,40 +205,6 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
               ),
             ),
 
-            // 成就展示
-            Container(
-              margin: EdgeInsets.all(16),
-              padding: EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '🏆 最近成就',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF333333),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  _buildAchievementItem('🎯', '任务达人', '连续7天完成所有任务'),
-                  _buildAchievementItem('📝', '记录专家', '本月记录了50条日志'),
-                  _buildAchievementItem('⚡', '效率之星', '工作效率提升20%'),
-                ],
-              ),
-            ),
-
             // 退出登录按钮
             Container(
               margin: EdgeInsets.fromLTRB(16, 0, 16, 32),
@@ -248,6 +240,7 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
       ),
     );
   }
+
 
   Widget _buildStatItem(String value, String label) {
     return Column(
