@@ -1,6 +1,7 @@
-// task_report_detail_view.dart - 简化版本
+// task_report_detail_view.dart - 支持图片显示版本
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:http/http.dart' as http;
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/task_report.dart';
 import '../services/task_report_service.dart';
 import '../services/auth_service.dart';
@@ -23,11 +24,13 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
   List<String> _imageAttachments = [];
   List<String> _otherAttachments = [];
   bool _isLoading = false;
+  Map<String, String> _imageUrlsWithAuth = {};
 
   @override
   void initState() {
     super.initState();
     _categorizeAttachments();
+    _prepareImageUrls();
   }
 
   void _categorizeAttachments() {
@@ -43,6 +46,20 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
     }
   }
 
+// 在 _prepareImageUrls 方法中确保使用正确的 URL
+  void _prepareImageUrls() async {
+    final authToken = await AuthService.getSavedToken();
+    if (authToken != null) {
+      for (final imageUrl in _imageAttachments) {
+        final fileName = _getFileName(imageUrl);
+        final fullUrl = '${TaskReportService.baseUrl}/files/${widget.taskId}/$fileName';
+        _imageUrlsWithAuth[imageUrl] = fullUrl;
+        print('🖼️ 图片URL: $fullUrl'); // 添加调试信息
+      }
+      if (mounted) setState(() {});
+    }
+  }
+
   bool _isImageFile(String filePath) {
     final extension = filePath.toLowerCase().split('.').last;
     return ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].contains(extension);
@@ -52,51 +69,72 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
     return filePath.split('/').last;
   }
 
-  // 下载文件方法
+// 修改下载方法中的 URL 生成
   Future<void> _downloadAttachment(String fileUrl) async {
     try {
-      setState(() {
-        _isLoading = true;
-      });
-
       final authToken = await AuthService.getSavedToken();
       if (authToken == null) {
         throw Exception('用户未认证');
       }
 
-      final fullUrl = '${TaskReportService.baseUrl}/$fileUrl';
+      final fileName = _getFileName(fileUrl);
+      // 使用新的文件服务 URL
+      final fullUrl = '${TaskReportService.baseUrl}/files/${widget.taskId}/$fileName';
+
       print('📥 开始下载文件: $fullUrl');
 
-      // 使用 url_launcher 打开下载链接
-      if (await canLaunch(fullUrl)) {
-        await launch(
-          fullUrl,
-          headers: {'Authorization': 'Bearer $authToken'},
-        );
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('正在下载: ${_getFileName(fileUrl)}'),
-            backgroundColor: Colors.green,
+      // 显示文件下载对话框
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('下载文件'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('文件名: $fileName'),
+              SizedBox(height: 8),
+              Text('类型: ${_getFileTypeDescription(fileUrl)}'),
+              SizedBox(height: 8),
+              Text('文件链接:'),
+              SizedBox(height: 4),
+              SelectableText(
+                fullUrl,
+                style: TextStyle(fontSize: 12, color: Colors.blue),
+              ),
+            ],
           ),
-        );
-      } else {
-        throw Exception('无法打开下载链接');
-      }
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('文件链接已准备'),
+                    backgroundColor: Colors.blue,
+                  ),
+                );
+              },
+              child: Text('确定'),
+            ),
+          ],
+        ),
+      );
+
     } catch (e) {
       print('❌ 下载文件失败: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('下载失败: ${e.toString()}'),
+          content: Text('操作失败: ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
     }
   }
-
   // 获取文件类型图标
   IconData _getFileIcon(String filePath) {
     final extension = filePath.toLowerCase().split('.').last;
@@ -167,7 +205,8 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
             SizedBox(height: 20),
             _buildLocationSection(),
             SizedBox(height: 20),
-            if (widget.report.attachments.isNotEmpty) _buildAllAttachments(),
+            if (_imageAttachments.isNotEmpty) _buildImageAttachments(),
+            if (_otherAttachments.isNotEmpty) _buildOtherAttachments(),
             SizedBox(height: 30),
           ],
         ),
@@ -291,10 +330,6 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                   SizedBox(height: 4),
-                  Text(
-                    '坐标: ${widget.report.latitude.toStringAsFixed(6)}, ${widget.report.longitude.toStringAsFixed(6)}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
                 ],
               ),
             ),
@@ -304,7 +339,124 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
     );
   }
 
-  Widget _buildAllAttachments() {
+  // 图片附件显示
+  Widget _buildImageAttachments() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.photo_library, color: Colors.green, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  '图片附件 (${_imageAttachments.length})',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            SizedBox(height: 12),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 1,
+              ),
+              itemCount: _imageAttachments.length,
+              itemBuilder: (context, index) {
+                final attachment = _imageAttachments[index];
+                final imageUrl = _imageUrlsWithAuth[attachment];
+
+                return GestureDetector(
+                  onTap: () => _showImagePreview(attachment, index),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.grey[200],
+                    ),
+                    child: imageUrl != null
+                        ? _buildNetworkImage(imageUrl, attachment)
+                        : Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 构建网络图片组件
+  // 构建网络图片组件
+  Widget _buildNetworkImage(String imageUrl, String attachment) {
+    final fileName = _getFileName(attachment);
+    final fullImageUrl = '${TaskReportService.baseUrl}/files/${widget.taskId}/$fileName';
+
+    print('🖼️ 加载图片: $fullImageUrl');
+
+    return FutureBuilder<String?>(
+      future: AuthService.getSavedToken(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
+
+        final token = snapshot.data;
+        if (token == null) {
+          print('❌ Token为空');
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error, color: Colors.red),
+                SizedBox(height: 4),
+                Text('认证失败', style: TextStyle(fontSize: 10)),
+              ],
+            ),
+          );
+        }
+
+        print('✅ 使用Token加载图片: $fullImageUrl');
+        return CachedNetworkImage(
+          imageUrl: fullImageUrl,
+          httpHeaders: {
+            'Authorization': 'Bearer $token',
+          },
+          fit: BoxFit.cover,
+          placeholder: (context, url) => Center(
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          errorWidget: (context, url, error) {
+            print('❌ 图片加载失败: $url');
+            print('❌ 错误类型: ${error.runtimeType}');
+            print('❌ 错误信息: $error');
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.broken_image, color: Colors.grey),
+                  SizedBox(height: 4),
+                  Text('加载失败', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+  // 其他附件显示
+  Widget _buildOtherAttachments() {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -318,14 +470,14 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
                 Icon(Icons.attach_file, color: Colors.orange, size: 20),
                 SizedBox(width: 8),
                 Text(
-                  '所有附件 (${widget.report.attachments.length})',
+                  '其他附件 (${_otherAttachments.length})',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
             SizedBox(height: 12),
             Column(
-              children: widget.report.attachments.map((attachment) =>
+              children: _otherAttachments.map((attachment) =>
                   _buildAttachmentItem(attachment)
               ).toList(),
             ),
@@ -380,6 +532,113 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
     );
   }
 
+  // 图片预览
+  // 图片预览
+  void _showImagePreview(String imageUrl, int index) {
+    final fileName = _getFileName(imageUrl);
+    final fullUrl = '${TaskReportService.baseUrl}/files/${widget.taskId}/$fileName';
+
+    print('🔍 图片预览URL: $fullUrl');
+
+    showDialog(
+      context: context,
+      builder: (context) => FutureBuilder<String?>(
+        future: AuthService.getSavedToken(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Dialog(
+              child: Container(
+                width: 300,
+                height: 300,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            );
+          }
+
+          final token = snapshot.data;
+          if (token == null) {
+            return AlertDialog(
+              title: Text('错误'),
+              content: Text('认证失败，无法加载图片'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('关闭'),
+                ),
+              ],
+            );
+          }
+
+          return Dialog(
+            insetPadding: EdgeInsets.all(20),
+            child: Container(
+              width: double.infinity,
+              height: 400,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '图片预览',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: CachedNetworkImage(
+                      imageUrl: fullUrl,
+                      httpHeaders: {
+                        'Authorization': 'Bearer $token',
+                      },
+                      fit: BoxFit.contain,
+                      progressIndicatorBuilder: (context, url, progress) => Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(
+                              value: progress.progress,
+                            ),
+                            SizedBox(height: 8),
+                            Text('加载中...'),
+                          ],
+                        ),
+                      ),
+                      errorWidget: (context, url, error) {
+                        print('❌ 预览图片加载失败: $error');
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.error, color: Colors.red, size: 48),
+                              SizedBox(height: 16),
+                              Text('图片加载失败', style: TextStyle(fontSize: 16)),
+                              SizedBox(height: 8),
+                              Text(
+                                'URL: ${fullUrl.split('/').last}',
+                                style: TextStyle(fontSize: 12, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
   String _formatDetailedTime(DateTime timestamp) {
     return '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')} ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}:${timestamp.second.toString().padLeft(2, '0')}';
   }

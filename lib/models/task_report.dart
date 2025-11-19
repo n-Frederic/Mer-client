@@ -5,8 +5,6 @@ class TaskReport {
   final String id;
   final String taskId;
   final String content;
-  final double latitude;
-  final double longitude;
   final String address;
   final List<String> attachments; // 改为列表存储多个附件
   final DateTime createdAt;
@@ -17,8 +15,6 @@ class TaskReport {
     required this.id,
     required this.taskId,
     required this.content,
-    required this.latitude,
-    required this.longitude,
     required this.address,
     required this.attachments,
     required this.createdAt,
@@ -46,12 +42,6 @@ class TaskReport {
       id: json['report_id']?.toString() ?? json['id']?.toString() ?? '',
       taskId: json['task_id']?.toString() ?? '',
       content: json['content'] ?? '',
-      latitude: (json['latitude'] is String)
-          ? double.tryParse(json['latitude']) ?? 0.0
-          : (json['latitude'] as num?)?.toDouble() ?? 0.0,
-      longitude: (json['longitude'] is String)
-          ? double.tryParse(json['longitude']) ?? 0.0
-          : (json['longitude'] as num?)?.toDouble() ?? 0.0,
       address: json['address'] ?? '',
       attachments: attachments,
       createdAt: json['created_at'] != null
@@ -67,8 +57,6 @@ class TaskReport {
       'id': id,
       'task_id': taskId,
       'content': content,
-      'latitude': latitude,
-      'longitude': longitude,
       'address': address,
       'attachments': jsonEncode(attachments),
       'created_at': createdAt.toIso8601String(),
