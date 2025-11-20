@@ -69,20 +69,15 @@ class LogService {
       if (response.statusCode == 200) {
         final String jsonString = utf8.decode(response.bodyBytes);
         final Map<String, dynamic> responseData = json.decode(jsonString);
-
-        if (responseData['data'] == null) {
-          throw Exception('响应格式错误: 未找到 "data" 字段');
-        }
-        final Map<String, dynamic> data = responseData['data'];
-        final List<dynamic> jsonList = data['list'] ?? [];
+        final List<dynamic> jsonList = responseData['list'] ?? [];
 
         final List<Log> logs = jsonList.map((json) => Log.fromJson(json)).toList();
 
         return LogListResponse(
           logs: logs,
-          total: data['total'] ?? 0,
-          page: data['page'] ?? 1,
-          pageSize: data['pageSize'] ?? 10,
+          total: responseData['total'] ?? 0,
+          page: responseData['page'] ?? 1,
+          pageSize: responseData['pageSize'] ?? 10,
         );
 
       } else {
