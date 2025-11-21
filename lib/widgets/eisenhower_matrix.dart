@@ -17,7 +17,7 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
   final int _userId = 1; // 实际应用中应从登录信息获取
 
   EisenhowerMatrixData _data = EisenhowerMatrixData.empty();
-  bool _isExpanded = false; // 控制广告内容展开/收起
+// 控制广告内容展开/收起
 
   @override
   void initState() {
@@ -99,13 +99,6 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
     }
   }
 
-  // 刷新数据
-  Future<void> _refreshData() async {
-    _updateData(isLoading: true);
-    await _loadAllData();
-    _showSuccessSnackBar("数据已刷新");
-  }
-
   // 更新数据辅助方法
   void _updateData({
     List<String>? companyImportantTasks,
@@ -154,26 +147,6 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
-            // 广告卡片 - 限制高度
-            Container(
-              height: 200, // 固定高度
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: _refreshData,
-                    icon: _data.isLoading
-                        ? SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                        : Icon(Icons.refresh),
-                    tooltip: '刷新数据',
-                  ),
-                  Expanded(child: _buildAdCard()),
-                ],
-              ),
-            ),
             SizedBox(height: 12),
             Expanded(
               child: _data.isLoading
@@ -229,233 +202,6 @@ class _EisenhowerMatrixState extends State<EisenhowerMatrix> with TickerProvider
     );
   }
 
-  // ====== Ad Card ======
-  Widget _buildAdCard() {
-    return Card(
-      elevation: 8,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53)],
-          ),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 标题和展开/收起按钮
-            Row(
-              children: [
-                Text(
-                  "🚀 WELCOME TO MER!",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                Spacer(),
-                IconButton(
-                  onPressed: () {
-                    setState(() {
-                      _isExpanded = !_isExpanded;
-                    });
-                  },
-                  icon: Icon(
-                    _isExpanded ? Icons.expand_less : Icons.expand_more,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints: BoxConstraints(minWidth: 32, minHeight: 32),
-                ),
-              ],
-            ),
-
-            // 广告内容
-            Expanded(
-              child: _isExpanded
-                  ? _buildScrollableAdContent()
-                  : _buildAdSummary(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // 可滚动的完整广告内容
-  Widget _buildScrollableAdContent() {
-    return SingleChildScrollView(
-      physics: BouncingScrollPhysics(),
-      child: _buildFullAdContent(),
-    );
-  }
-
-  // 广告摘要视图
-  Widget _buildAdSummary() {
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "还在为「人间理想」和「诗和远方」感到羞愧吗？别担心——在我们公司，我们直接跳过幻想，拥抱美好生活！",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              height: 1.4,
-            ),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-          ),
-          SizedBox(height: 8),
-          Text(
-            "→",
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 完整广告内容
-  Widget _buildFullAdContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // 🐮🐴 关于我们
-        _buildAdSection(
-          "🐮🐴 About us：",
-          [
-            "成立20天，累计为员工发放过3次「感动中国好员工」手写奖状",
-            "独家开创「24小时云端待机工作法」（注：半夜收到老板语音别慌，只是测测你睡了没）",
-            "本月最新福利：把公司WiFi密码改为「ILOVEWORK!」",
-          ],
-        ),
-
-        SizedBox(height: 8),
-
-        // 🎯 我们需要这样的你
-        _buildAdSection(
-          "🎯 我们需要这样的你：",
-          [
-            "熟练掌握「用一杯咖啡熬过16小时」的生存技能",
-            "能把「我马上改」说出108种不同语气",
-            "对「加班」二字有超越常人的哲学理解",
-            "无需休息，随时上机",
-          ],
-        ),
-
-        SizedBox(height: 8),
-
-        // 💼 你将获得
-        _buildAdSection(
-          "💼 你将获得：",
-          [
-            "zxc组长周末的贴心问候（随时随地，随叫随到）",
-            "无限量供应的工作热情（及yf611无限电量供应）",
-            "亲眼见证凌晨四点bjtu的机会（全年约365次的机会，先到先得）",
-            "苏老师亲授《专业课程实训》大师课",
-          ],
-        ),
-
-        SizedBox(height: 8),
-
-        // 👑 特别惊喜
-        _buildAdSection(
-          "👑 特别惊喜：",
-          [
-            "年度优秀员工将获得——A++++++完美成绩！",
-          ],
-        ),
-
-        SizedBox(height: 8),
-
-        // 💌 应聘须知
-        _buildAdSection(
-          "💌 应聘须知：",
-          [
-            "请把简历送往 2625791372@qq.com",
-            "（收到自动回复「你的肝还好吗？」即表示投递成功）",
-          ],
-        ),
-
-        SizedBox(height: 8),
-
-        // 🌚 最后温馨提示
-        _buildAdSection(
-          "🌚 最后温馨提示：",
-          [
-            "如果看完这则广告你居然笑了——",
-            "恭喜！你已经具备在MER公司笑对风云的珍贵品质",
-          ],
-        ),
-
-        SizedBox(height: 8),
-
-        Text(
-          "（注：本广告最终解释权归本公司所有，以及，我们真的在招人——毕竟上个月又猝走了两个）",
-          style: TextStyle(
-            color: Colors.white70,
-            fontSize: 10,
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // 广告部分组件
-  Widget _buildAdSection(String title, List<String> items) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        SizedBox(height: 4),
-        ...items.map((item) => Padding(
-          padding: EdgeInsets.only(bottom: 2),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "• ",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  item,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    height: 1.3,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        )).toList(),
-      ],
-    );
-  }
 
   // ====== Quadrant Card ======
   Widget _buildQuadrantCard({

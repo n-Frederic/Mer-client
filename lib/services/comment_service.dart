@@ -110,8 +110,6 @@ class CommentService {
     try {
       final response = await http.post(uri, headers: headers, body: body);
       final String jsonString = utf8.decode(response.bodyBytes);
-      print('CommentService: [createComment] 响应 (${response.statusCode}): $jsonString');
-
       if (response.statusCode == 201 || response.statusCode == 200) {
         final responseData = json.decode(jsonString);
 
@@ -169,9 +167,6 @@ class CommentService {
     };
 
     final uri = Uri.parse('$baseUrl/comments/$commentId').replace(queryParameters: params);
-
-    print('CommentService: [deleteComment] 请求: $uri');
-
     try {
       final response = await http.delete(
         uri,
@@ -179,8 +174,6 @@ class CommentService {
       );
 
       final String jsonString = utf8.decode(response.bodyBytes);
-      print('CommentService: [deleteComment] 响应 (${response.statusCode}): $jsonString');
-
       if (response.statusCode == 200) {
         final responseData = json.decode(jsonString);
         return responseData['code'] == 200;
