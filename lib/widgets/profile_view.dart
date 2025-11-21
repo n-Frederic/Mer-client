@@ -256,29 +256,22 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
     );
   }
 
-  void _changePassword() async {
+  void _changePassword() {
     if (_currentUserEmail == null || _currentUserEmail!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('无法获取当前用户邮箱，请稍后重试'), backgroundColor: Colors.red),
+        SnackBar(content: Text('数据加载中，请稍后再试'), backgroundColor: Colors.orange),
       );
       return;
     }
 
-    if (_isSendingCode) return;
-
-    setState(() {
-      _isSendingCode = true;
-    });
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ResetPasswordScreen(email: _currentUserEmail!),
-        ),
-      );
-
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ResetPasswordScreen(email: _currentUserEmail!),
+      ),
+    );
   }
-  
+
   Widget _buildMenuItem(
       IconData icon,
       String title,
