@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:pandora_app/services/profile_service.dart';
 
 import '../models/comment.dart';
 import 'auth_service.dart';
@@ -28,12 +29,18 @@ class CommentService {
     int pageSize = 20,
   }) async {
     final headers = await _getAuthHeaders();
+
+    // 1. 准备参数
     final Map<String, String> params = {
-      'ownerType': ownerType,
-      'ownerId': ownerId,
       'page': page.toString(),
       'pageSize': pageSize.toString(),
     };
+
+    if (ownerType == 'journal' || ownerType == 'log') {
+      params['logId'] = ownerId;
+    } else {
+      params['taskId'] = ownerId;
+    }
 
     final uri = Uri.parse('$baseUrl/comments').replace(queryParameters: params);
     print('CommentService: [fetchComments] 请求: $uri');
@@ -44,7 +51,25 @@ class CommentService {
       print('CommentService: [fetchComments] 响应 (${response.statusCode}): $jsonString');
 
       if (response.statusCode == 200) {
-        return CommentListResponse.fromJson(json.decode(jsonString));
+        final Map<String, dynamic> responseData = json.decode(jsonString);
+
+        if (responseData['code'] == 200 && responseData['data'] != null) {
+          final data = responseData['data'];
+          final List<dynamic> commentsJson = data['comments'] ?? [];
+
+          final List<Comment> comments = commentsJson.map((item) {
+            return Comment.fromJson(item as Map<String, dynamic>);
+          }).toList();
+
+          return CommentListResponse(
+            comments: comments,
+            total: data['total'] ?? 0,
+            page: data['page'] ?? 1,
+            pageSize: data['pageSize'] ?? 10,
+          );
+        } else {
+          throw Exception('获取评论失败: ${responseData['message'] ?? '响应格式错误'}');
+        }
       } else {
         throw Exception('无法加载评论列表: ${response.statusCode}');
       }
@@ -57,33 +82,67 @@ class CommentService {
   // 2. 创建评论 (POST /api/comments)
   static Future<Comment> createComment({
     required String ownerType,
-    required String ownerId,
+    required String ownerId, // (这里的 ownerId 是被评论对象 ID)
     required String content,
   }) async {
     final headers = await _getAuthHeaders();
     final uri = Uri.parse('$baseUrl/comments');
 
-    final body = json.encode({
-      'ownerType': ownerType,
-      'ownerId': ownerId,
+    final userId = await AuthService.getSavedUserId();
+    if (userId == null) {
+      throw Exception('无法获取当前用户ID');
+    }
+
+    final Map<String, dynamic> bodyMap = {
+      // 1. 评论内容
       'content': content,
-      // 'authorId' 将由后端从 Token 中提取
-    });
+      // 2. 评论者 ID (后端叫 'ownerId')
+      'ownerId': userId,
+    };
 
-    print('CommentService: [createComment] 请求: $uri');
-
+    // 3. 被评论对象 ID (根据类型决定键名)
+    if (ownerType == 'journal' || ownerType == 'log') {
+      bodyMap['logId'] = ownerId; // 日志 ID
+    } else {
+      bodyMap['taskId'] = ownerId; // 任务 ID
+    }
+    final body = json.encode(bodyMap);
     try {
       final response = await http.post(uri, headers: headers, body: body);
       final String jsonString = utf8.decode(response.bodyBytes);
       print('CommentService: [createComment] 响应 (${response.statusCode}): $jsonString');
 
-      if (response.statusCode == 201) { // 201 Created
+      if (response.statusCode == 201 || response.statusCode == 200) {
         final responseData = json.decode(jsonString);
-        // 根据 API 文档, 新评论在 "data" 键中
-        if (responseData['code'] == 201 && responseData['data'] != null) {
-          return Comment.fromJson(responseData['data']);
+
+        if ((responseData['code'] == 201 || responseData['code'] == 200) && responseData['data'] != null) {
+          final data = responseData['data'];
+
+          final String authorIdStr = (data['ownerId'] ?? userId).toString();
+          String authorName = '我';
+          if (authorIdStr.isNotEmpty) {
+            try {
+              final userProfile = await ProfileService.fetchUserById(authorIdStr);
+              if (userProfile.containsKey('name')) {
+                authorName = userProfile['name'];
+              }
+            } catch (e) { /* ignore */ }
+          }
+
+          return Comment(
+            commentId: (data['commentId'] ?? '').toString(),
+            ownerType: ownerType,
+            ownerId: (data['logId'] ?? data['taskId'] ?? ownerId).toString(),
+            authorId: authorIdStr,
+            content: data['content'] ?? '',
+            createdAt: DateTime.tryParse(data['createdAt'] ?? '') ?? DateTime.now(),
+            authorInfo: AuthorInfo(
+              userId: authorIdStr,
+              name: authorName,
+            ),
+          );
         } else {
-          throw Exception('创建评论失败: 响应格式错误');
+          throw Exception('创建评论失败: ${responseData['message'] ?? '响应格式错误'}');
         }
       } else {
         throw Exception('创建评论失败: ${response.statusCode}');
