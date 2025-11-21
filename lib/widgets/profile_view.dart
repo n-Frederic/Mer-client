@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../screens/reset_password_screen.dart';
 import '../services/auth_service.dart';
 import '../services/profile_service.dart';
 import 'profile_child_screen/personal_info_screen.dart';
@@ -16,6 +17,8 @@ class ProfileView extends StatefulWidget {
 class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin {
   late AnimationController _animationController;
   late Future<Map<String, dynamic>> _profileFuture;
+  String? _currentUserEmail;
+  bool _isSendingCode = false;
 
   @override
   void initState() {
@@ -63,6 +66,10 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                   subtitle = userData?['team']?.toString() ?? '潘多拉成员';
                   email = userData?['email']?.toString() ?? '';
                   phone = userData?['phone']?.toString() ?? '';
+
+                  if (_currentUserEmail == null && email.isNotEmpty) {
+                    _currentUserEmail = email;
+                  }
 
                 } else if (snapshot.hasError) {
                   // 3. 加载失败
@@ -150,6 +157,14 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                       context,
                       MaterialPageRoute(builder: (_) => PersonalInfoScreen()),
                     ),
+                  ),
+                  _buildMenuItem(
+                    Icons.lock_reset, // (锁图标)
+                    '修改密码',
+                    '重置您的登录密码',
+                    Colors.orangeAccent,
+                    // 点击时调用 _changePassword (如果正在发送，则不响应)
+                    onTap: _isSendingCode ? null : _changePassword,
                   ),
                   _buildMenuItem(
                     Icons.notifications,
@@ -241,30 +256,29 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
     );
   }
 
+  void _changePassword() async {
+    if (_currentUserEmail == null || _currentUserEmail!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('无法获取当前用户邮箱，请稍后重试'), backgroundColor: Colors.red),
+      );
+      return;
+    }
 
-  Widget _buildStatItem(String value, String label) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+    if (_isSendingCode) return;
+
+    setState(() {
+      _isSendingCode = true;
+    });
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ResetPasswordScreen(email: _currentUserEmail!),
         ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.white.withOpacity(0.9),
-          ),
-        ),
-      ],
-    );
+      );
+
   }
-
-  /// ✅ 新版：支持 onTap 参数
+  
   Widget _buildMenuItem(
       IconData icon,
       String title,
