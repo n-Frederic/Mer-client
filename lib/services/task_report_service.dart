@@ -11,6 +11,236 @@ import 'package:http_parser/http_parser.dart';
 class TaskReportService {
   static final String baseUrl = AppConfig.baseUrl;
 
+// 在 TaskReportService 中修改获取报告的方法
+  static Future<Map<String, List<TaskReport>>> fetchTaskReportsByUser(String taskId) async {
+    final authToken = await AuthService.getSavedToken();
+    if (authToken == null) {
+      throw Exception('用户未认证，请先登录');
+    }
+
+    final uri = Uri.parse('$baseUrl/tasks/$taskId/reports');
+
+    print('🔄 [fetchTaskReportsByUser] 获取任务报告');
+    print('   📍 请求URL: $uri');
+
+    try {
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+      );
+
+      print('📥 [fetchTaskReportsByUser] 响应状态码: ${response.statusCode}');
+      print('📥 [fetchTaskReportsByUser] 响应体: ${utf8.decode(response.bodyBytes)}');
+
+      if (response.statusCode == 200) {
+        final String jsonString = utf8.decode(response.bodyBytes);
+        final Map<String, dynamic> responseData = json.decode(jsonString);
+
+        if (responseData['ok'] == true) {
+          List<dynamic> reportsJson = [];
+
+          if (responseData.containsKey('reports')) {
+            reportsJson = responseData['reports'];
+          } else if (responseData.containsKey('data')) {
+            reportsJson = responseData['data'];
+          } else if (responseData.containsKey('list')) {
+            reportsJson = responseData['list'];
+          }
+
+          print('📊 [fetchTaskReportsByUser] 解析到的报告数量: ${reportsJson.length}');
+
+          // 按用户ID分组报告
+          Map<String, List<TaskReport>> userReports = {};
+          for (var reportJson in reportsJson) {
+            final report = TaskReport.fromJson(reportJson);
+            print('   📝 报告ID: ${report.id}, 用户: ${report.createdBy}, 状态: ${report.status}');
+
+            if (!userReports.containsKey(report.createdBy)) {
+              userReports[report.createdBy] = [];
+            }
+            userReports[report.createdBy]!.add(report);
+          }
+
+          print('✅ [fetchTaskReportsByUser] 报告分组完成: ${userReports.keys.toList()}');
+          return userReports;
+        } else {
+          print('❌ [fetchTaskReportsByUser] 服务器返回错误');
+          return {};
+        }
+      } else if (response.statusCode == 401) {
+        throw Exception('认证失败或Token过期，请重新登录');
+      } else if (response.statusCode == 404) {
+        print('📭 [fetchTaskReportsByUser] 没有找到报告');
+        return {};
+      } else {
+        throw Exception('无法加载报告记录，服务器响应码: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('💥 [fetchTaskReportsByUser] 捕获到错误: $e');
+      return {};
+    }
+  }
+  // 审批单个用户的报告
+  static Future<bool> approveUserReport(String taskId, String reporterId) async {
+    final authToken = await AuthService.getSavedToken();
+    if (authToken == null) {
+      throw Exception('用户未认证，请先登录');
+    }
+
+    final currentUserId = await AuthService.getSavedUserId();
+    final uri = Uri.parse('$baseUrl/tasks/$taskId/reports/$reporterId/approve');
+
+    // 添加请求体
+    final body = jsonEncode({
+      'approved_by': currentUserId?.toString(),
+      'approved_at': DateTime.now().toIso8601String(),
+    });
+
+    try {
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+        body: body,  // 添加这行
+      );
+
+      print('📥 审批用户报告响应状态码: ${response.statusCode}');
+      print('📥 审批用户报告响应体: ${utf8.decode(response.bodyBytes)}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(utf8.decode(response.bodyBytes));
+        return responseData['ok'] == true;
+      } else if (response.statusCode == 401) {
+        throw Exception('认证失败或Token过期，请重新登录');
+      } else {
+        throw Exception('审批报告失败，服务器响应码: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('TaskReportService 捕获到原始错误 (approveUserReport): $e');
+      throw Exception('审批报告失败: $e');
+    }
+  }
+
+  // 拒绝单个用户的报告
+  static Future<bool> rejectUserReport(String taskId, String reporterId, String reason) async {
+    final authToken = await AuthService.getSavedToken();
+    if (authToken == null) {
+      throw Exception('用户未认证，请先登录');
+    }
+
+    final currentUserId = await AuthService.getSavedUserId();
+    final uri = Uri.parse('$baseUrl/tasks/$taskId/reports/$reporterId/reject');
+
+    final body = jsonEncode({
+      'rejected_by': currentUserId?.toString(),
+      'rejected_at': DateTime.now().toIso8601String(),
+      'reason': reason,
+    });
+
+    try {
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+        body: body,
+      );
+
+      print('📥 拒绝用户报告响应状态码: ${response.statusCode}');
+      print('📥 拒绝用户报告响应体: ${utf8.decode(response.bodyBytes)}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(utf8.decode(response.bodyBytes));
+        return responseData['ok'] == true;
+      } else if (response.statusCode == 401) {
+        throw Exception('认证失败或Token过期，请重新登录');
+      } else {
+        throw Exception('拒绝报告失败，服务器响应码: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('TaskReportService 捕获到原始错误 (rejectUserReport): $e');
+      throw Exception('拒绝报告失败: $e');
+    }
+  }
+
+  // 批量审批所有待审核报告
+  static Future<bool> batchApproveReports(String taskId) async {
+    final authToken = await AuthService.getSavedToken();
+    if (authToken == null) {
+      throw Exception('用户未认证，请先登录');
+    }
+
+    final currentUserId = await AuthService.getSavedUserId();
+    final uri = Uri.parse('$baseUrl/tasks/$taskId/reports/batch-approve');
+
+    final body = jsonEncode({
+      'approved_by': currentUserId?.toString(),
+      'approved_at': DateTime.now().toIso8601String(),
+    });
+
+    try {
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+        body: body,
+      );
+
+      print('📥 批量审批响应状态码: ${response.statusCode}');
+      print('📥 批量审批响应体: ${utf8.decode(response.bodyBytes)}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(utf8.decode(response.bodyBytes));
+        return responseData['ok'] == true;
+      } else {
+        throw Exception('批量审批失败，服务器响应码: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('批量审批失败: $e');
+      throw Exception('批量审批失败: $e');
+    }
+  }
+
+  // 检查所有报告是否都已通过
+  static Future<bool> checkAllReportsApproved(String taskId) async {
+    final authToken = await AuthService.getSavedToken();
+    if (authToken == null) {
+      throw Exception('用户未认证，请先登录');
+    }
+
+    final uri = Uri.parse('$baseUrl/tasks/$taskId/reports/check-all-approved');
+
+    try {
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(utf8.decode(response.bodyBytes));
+        return responseData['all_approved'] == true;
+      } else if (response.statusCode == 401) {
+        throw Exception('认证失败或Token过期，请重新登录');
+      } else {
+        throw Exception('检查报告状态失败，服务器响应码: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('TaskReportService 捕获到原始错误 (checkAllReportsApproved): $e');
+      return false;
+    }
+  }
+
   // 获取任务的报告记录
   static Future<List<TaskReport>> fetchTaskReports(String taskId) async {
     final authToken = await AuthService.getSavedToken();
@@ -64,14 +294,8 @@ class TaskReportService {
     }
   }
 
-// 创建任务报告
-  static Future<bool> createTaskReport({
-    required String taskId,
-    List<File>? files,
-    required Position location,
-    required String content,
-    String? address,
-  }) async {
+  // 创建任务报告
+  static Future<bool> createTaskReport({required String taskId, List<File>? files, required Position location, required String content, String? address,}) async {
     try {
       final authToken = await AuthService.getSavedToken();
       if (authToken == null) {
@@ -177,7 +401,66 @@ class TaskReportService {
     }
   }
 
-// 根据文件扩展名获取 MIME 类型
+  // 获取任务统计方法
+  static Future<Map<String, dynamic>> fetchReportStatistics(String taskId) async {
+    try {
+      final authToken = await AuthService.getSavedToken();
+      if (authToken == null) {
+        throw Exception('用户未认证，请先登录');
+      }
+
+      final uri = Uri.parse('$baseUrl/tasks/$taskId/reports/statistics');
+
+      print('📊 请求报告统计信息: $uri');
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+      );
+
+      print('📥 报告统计响应状态码: ${response.statusCode}');
+      print('📥 报告统计响应体: ${utf8.decode(response.bodyBytes)}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(utf8.decode(response.bodyBytes));
+
+        if (responseData['ok'] == true) {
+          // 处理不同的响应格式
+          Map<String, dynamic> statistics = {};
+
+          if (responseData.containsKey('data')) {
+            statistics = responseData['data'];
+          } else if (responseData.containsKey('statistics')) {
+            statistics = responseData['statistics'];
+          } else {
+            // 如果没有嵌套结构，直接使用根级别的字段
+            statistics = responseData;
+          }
+
+          print('📈 解析后的统计信息: $statistics');
+          return statistics;
+        } else {
+          throw Exception('服务器返回错误: ${responseData['message']}');
+        }
+      } else if (response.statusCode == 401) {
+        throw Exception('认证失败或Token过期，请重新登录');
+      } else if (response.statusCode == 404) {
+        print('⚠️ 统计接口返回404，使用本地计算');
+        return {};
+      } else {
+        throw Exception('获取报告统计失败，服务器响应码: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ 获取报告统计失败: $e');
+      // 如果统计接口失败，返回空map，让前端使用本地计算
+      return {};
+    }
+  }
+
+  // 根据文件扩展名获取 MIME 类型
   static String? _getMimeType(String extension) {
     switch (extension) {
       case 'jpg':
@@ -207,8 +490,6 @@ class TaskReportService {
         return 'application/octet-stream';
     }
   }
-
-
 
 
   // 获取地理位置服务
