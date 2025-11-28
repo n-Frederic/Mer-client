@@ -244,22 +244,139 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
+        // 左箭头
         IconButton(
           icon: Icon(Icons.chevron_left, color: Color(0xFFFF8C42)),
           onPressed: () => setState(() => _currentDate = DateTime(_currentDate.year, _currentDate.month - 1)),
         ),
-        Column(
-          children: [
-            Text('${_currentDate.year}年', style: TextStyle(fontSize: 14, color: Color(0xFF666666))),
-            Text(_getMonthName(_currentDate.month), style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF333333))),
-          ],
+
+        // 中间：点击区域
+        GestureDetector(
+          onTap: _showPicker, // 绑定刚才写的方法
+          behavior: HitTestBehavior.opaque, // 扩大点击区域有效性
+          child: Row(
+            mainAxisSize: MainAxisSize.min, // 紧凑布局
+            children: [
+              Column(
+                children: [
+                  Text(
+                    '${_currentDate.year}年',
+                    style: TextStyle(fontSize: 14, color: Color(0xFF666666)),
+                  ),
+                  Text(
+                    _getMonthName(_currentDate.month),
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF333333),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(width: 4), // 文字和图标的间距
+              Icon(Icons.arrow_drop_down, color: Color(0xFF666666), size: 28), // 倒三角图标
+            ],
+          ),
         ),
+
+        // 右箭头
         IconButton(
           icon: Icon(Icons.chevron_right, color: Color(0xFFFF8C42)),
           onPressed: () => setState(() => _currentDate = DateTime(_currentDate.year, _currentDate.month + 1)),
         ),
       ],
     );
+  }
+
+  // --- 简单版年月选择器 ---
+  Future<void> _showPicker() async {
+    int tempYear = _currentDate.year; // 初始年份
+
+    final DateTime? picked = await showDialog<DateTime>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text('选择月份'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min, // 内容包裹，防止溢出
+                children: [
+                  // 1. 年份选择：下拉框 (2020 - 2030)
+                  DropdownButton<int>(
+                    value: tempYear,
+                    isExpanded: true, // 撑满宽度
+                    items: List.generate(11, (index) => 2020 + index).map((year) {
+                      return DropdownMenuItem(
+                        value: year,
+                        child: Text('$year年', style: TextStyle(fontSize: 18)),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() => tempYear = val);
+                      }
+                    },
+                  ),
+                  SizedBox(height: 20),
+
+                  // 2. 月份选择：简单的 4列 x 3行 网格
+                  Container(
+                    width: 300,
+                    height: 200, // 固定高度，确保显示全
+                    child: GridView.builder(
+                      physics: NeverScrollableScrollPhysics(), // 禁止内部滚动
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 4, // 一行4个
+                        childAspectRatio: 1.5, // 宽高比
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                      ),
+                      itemCount: 12,
+                      itemBuilder: (context, index) {
+                        final month = index + 1;
+                        // 判断是否选中（只看月份，因为年份在上面选）
+                        final isSelected = (month == _currentDate.month && tempYear == _currentDate.year);
+
+                        return GestureDetector(
+                          onTap: () {
+                            // 点击即选中并关闭
+                            Navigator.pop(context, DateTime(tempYear, month, 1));
+                          },
+                          child: Container(
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: isSelected ? Colors.orange : Colors.white, // 选中变橙色
+                              border: Border.all(color: Colors.grey), // 简单的灰框
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '$month月',
+                              style: TextStyle(
+                                color: isSelected ? Colors.white : Colors.black,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    // 选中后的回调
+    if (picked != null) {
+      setState(() {
+        _currentDate = picked;
+        _selectedDay = picked;
+      });
+    }
   }
 
   Widget _buildWeekdaysHeader() {
@@ -335,6 +452,7 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
 
   // --- 周视图逻辑 ---
   Widget _buildWeekView() {
+    // 保持原本的周计算逻辑不变
     final startOfWeek = _currentDate.subtract(Duration(days: _currentDate.weekday == 7 ? 0 : _currentDate.weekday));
     final weekDays = List.generate(7, (i) => startOfWeek.add(Duration(days: i)));
 
@@ -342,25 +460,71 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
       padding: EdgeInsets.all(16),
       child: Column(
         children: [
-          // 周头
-          Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))]),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('${_getMonthName(startOfWeek.month)}${startOfWeek.day}日', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                Text('至', style: TextStyle(color: Color(0xFF666666))),
-                Text('${_getMonthName(weekDays.last.month)}${weekDays.last.day}日', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
+          // --- 修改开始：周标题 ---
+          GestureDetector(
+            onTap: _selectWeekByDate, // 点击调用系统日历
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center, // 居中显示
+                children: [
+                  // 日历图标
+                  Icon(Icons.calendar_month, color: Color(0xFFFF8C42), size: 20),
+                  SizedBox(width: 8),
+
+                  // 日期范围文字
+                  Text(
+                    '${_getMonthName(startOfWeek.month)}${startOfWeek.day}日',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF333333)),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('至', style: TextStyle(color: Color(0xFF999999))),
+                  ),
+                  Text(
+                    '${_getMonthName(weekDays.last.month)}${weekDays.last.day}日',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF333333)),
+                  ),
+
+                  // 下拉指示图标
+                  SizedBox(width: 4),
+                  Icon(Icons.arrow_drop_down, color: Color(0xFF666666)),
+                ],
+              ),
             ),
           ),
+          // --- 修改结束 ---
+
           SizedBox(height: 16),
-          // 每天列表
+          // 每天列表 (保持不变)
           ...weekDays.map((day) => _buildWeekDayItem(day)).toList(),
         ],
       ),
     );
+  }
+
+  Future<void> _selectWeekByDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _currentDate, // 默认选中当前日期
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      helpText: '选择日期以跳转到对应周', // 提示文字
+    );
+
+    if (picked != null) {
+      setState(() {
+        _currentDate = picked; // 更新当前日期，周视图会自动计算该日期所在的周
+        _selectedDay = picked; // 同步选中的日子
+      });
+    }
   }
 
   Widget _buildWeekDayItem(DateTime day) {
@@ -423,36 +587,123 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
   }
 
   // --- 日视图逻辑 ---
+  // --- 日视图逻辑 ---
   Widget _buildDayView() {
-    // 这里的 _currentDate 在日视图下应该跟随 _selectedDay
+    // 目标日期跟随 _selectedDay
     final targetDate = _selectedDay;
     final dayTasks = _filterTasksForDate(targetDate);
+
+    // 辅助方法：选择具体日期
+    Future<void> _pickSpecificDate() async {
+      final DateTime? picked = await showDatePicker(
+        context: context,
+        initialDate: targetDate,
+        firstDate: DateTime(2020),
+        lastDate: DateTime(2030),
+      );
+      if (picked != null) {
+        setState(() {
+          _selectedDay = picked;
+          _currentDate = picked; // 同步更新月视图的月份
+        });
+      }
+    }
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(16),
       child: Column(
         children: [
-          // 巨大的日期卡片
+          // 修改后的头部卡片：带左右切换 + 点击选择
           Container(
             width: double.infinity,
-            padding: EdgeInsets.all(24),
+            padding: EdgeInsets.symmetric(vertical: 24, horizontal: 8), // 调整内边距
             decoration: BoxDecoration(
               gradient: LinearGradient(colors: [Color(0xFFFF8C42), Color(0xFFFF6B9D)]),
               borderRadius: BorderRadius.circular(24),
-              boxShadow: [BoxShadow(color: Color(0xFFFF8C42).withOpacity(0.3), blurRadius: 20, offset: Offset(0, 8))],
+              boxShadow: [
+                BoxShadow(color: Color(0xFFFF8C42).withOpacity(0.3), blurRadius: 20, offset: Offset(0, 8))
+              ],
             ),
-            child: Column(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('${targetDate.day}', style: TextStyle(fontSize: 56, fontWeight: FontWeight.w300, color: Colors.white, height: 1.0)),
-                Text('${_getMonthName(targetDate.month)} ${targetDate.year}', style: TextStyle(fontSize: 18, color: Colors.white.withOpacity(0.9))),
-                SizedBox(height: 8),
-                Text(_getWeekdayName(targetDate.weekday), style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.8))),
-                SizedBox(height: 8),
-                Text('今日任务: ${dayTasks.length}个', style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w500)),
+                // 1. 前一天按钮
+                IconButton(
+                  icon: Icon(Icons.chevron_left, color: Colors.white, size: 32),
+                  onPressed: () {
+                    setState(() {
+                      _selectedDay = _selectedDay.subtract(Duration(days: 1));
+                      _currentDate = _selectedDay;
+                    });
+                  },
+                ),
+
+                // 2. 中间日期信息 (可点击)
+                Expanded(
+                  child: GestureDetector(
+                    onTap: _pickSpecificDate, // 点击弹出日历
+                    behavior: HitTestBehavior.opaque,
+                    child: Column(
+                      children: [
+                        Text(
+                          '${targetDate.day}',
+                          style: TextStyle(
+                            fontSize: 56,
+                            fontWeight: FontWeight.w300,
+                            color: Colors.white,
+                            height: 1.0,
+                          ),
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '${_getMonthName(targetDate.month)} ${targetDate.year}',
+                              style: TextStyle(fontSize: 18, color: Colors.white.withOpacity(0.9)),
+                            ),
+                            SizedBox(width: 4),
+                            Icon(Icons.edit_calendar, color: Colors.white70, size: 16), // 小图标提示可点
+                          ],
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          _getWeekdayName(targetDate.weekday),
+                          style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.8)),
+                        ),
+                        SizedBox(height: 8),
+                        Container(
+                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '今日任务: ${dayTasks.length}个',
+                            style: TextStyle(fontSize: 14, color: Colors.white, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 3. 后一天按钮
+                IconButton(
+                  icon: Icon(Icons.chevron_right, color: Colors.white, size: 32),
+                  onPressed: () {
+                    setState(() {
+                      _selectedDay = _selectedDay.add(Duration(days: 1));
+                      _currentDate = _selectedDay;
+                    });
+                  },
+                ),
               ],
             ),
           ),
+
           SizedBox(height: 24),
+
+          // 下方任务列表 (保持不变)
           if (dayTasks.isEmpty)
             _buildEmptyState('今天没有任务', '享受轻松的一天吧！')
           else
@@ -530,7 +781,6 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
     return Center(child: Column(children: [Text(title, style: TextStyle(fontSize: 18)), Text(sub, style: TextStyle(color: Colors.grey))]));
   }
 
-  // --- 核心辅助逻辑 ---
 
   // 筛选某天的任务 (复用原本的复杂逻辑)
   List<Task> _filterTasksForDate(DateTime date) {
