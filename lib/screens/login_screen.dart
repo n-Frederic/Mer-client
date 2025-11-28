@@ -12,7 +12,6 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
-  // 【移除】_isSendingCode 逻辑已转移
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;

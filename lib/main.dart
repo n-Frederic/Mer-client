@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/task_screen.dart';
+import 'screens/calendar_screen.dart';
 import 'screens/log_screen.dart';
 import 'screens/analytics_screen.dart';
 import 'screens/profile_screen.dart';
@@ -65,7 +65,7 @@ class PandoraApp extends StatelessWidget {
       routes: {
         '/login': (context) => LoginScreen(),
         '/home': (context) => HomeScreen(),
-        '/tasks': (context) => TaskScreen(),
+        '/tasks': (context) => CalendarScreen(),
         '/logs': (context) => LogScreen(),
         '/analytics': (context) => AnalyticsScreen(),
         '/profile': (context) => ProfileScreen(),

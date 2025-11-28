@@ -37,22 +37,29 @@ class _NotificationsViewState extends State<NotificationsView> {
     }
 
     // 2. 根据 type 跳转
-    // 你的 JSON 示例 type 是 "task"，我们假设还有 "log"
-    if (item.type == 'task' || item.type == 'task_assigned') {
+    if (item.type == 'task' ||
+        item.type == 'task_assigned' ||
+        item.type == 'task_reported' ||
+        item.type == 'task_due_soon') { // <-- 【新增】截止提醒也跳转任务详情
+
       Navigator.push(
         context,
         MaterialPageRoute(
-          // 这里的 item.ownerId 就是 relevent_id (如 "1")
           builder: (context) => TaskDetailView(taskId: item.ownerId),
         ),
       );
-    } else if (item.type == 'log' || item.type == 'journal' || item.type == 'log_commented') {
+
+    } else if (item.type == 'log' ||
+        item.type == 'journal' ||
+        item.type == 'log_commented') {
+
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => LogDetailView(logId: item.ownerId),
         ),
       );
+
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('未知通知类型: ${item.type}')),

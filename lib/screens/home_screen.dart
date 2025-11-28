@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:pandora_app/screens/calendar_screen.dart';
 import '../widgets/bottom_navigation.dart';
 import '../widgets/eisenhower_matrix.dart';
-import '../widgets/task_view.dart';
 import '../widgets/log_view.dart';
 import '../widgets/analytics_view.dart';
 import '../widgets/profile_view.dart';
@@ -32,7 +32,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   final List<Widget> _pages = [
     EisenhowerMatrix(),
-    CalendarView(),
+    CalendarScreen(),
     LogView(),
     AnalyticsView(),
     ProfileView(),
