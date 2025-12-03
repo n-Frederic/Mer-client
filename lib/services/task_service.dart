@@ -360,4 +360,45 @@ class TaskService {
     }
   }
 
+  static Future<List<Task>> fetchCalendarTasks(DateTime startDate, DateTime endDate) async {
+    final token = await AuthService.getSavedToken(); // 获取 Token
+    if (token == null) throw Exception('未登录');
+
+    // 1. 手动格式化日期为 YYYY-MM-DD (避免依赖 intl 包)
+    String startStr = "${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}";
+    String endStr = "${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}";
+
+    // 2. 构建 URL 和参数
+    // 注意：这里使用了 AppConfig.baseUrl，请确保你的文件里引入了 AppConfig
+    final uri = Uri.parse('${AppConfig.baseUrl}/tasks/calendar').replace(queryParameters: {
+      'startDate': startStr,
+      'endDate': endStr,
+    });
+
+    try {
+      final response = await http.get(
+        uri,
+        headers: {
+          "Authorization": "Bearer $token",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // 处理 UTF8 编码
+        final Map<String, dynamic> body = jsonDecode(utf8.decode(response.bodyBytes));
+
+        if (body['ok'] == true) {
+          final List<dynamic> list = body['data'];
+          return list.map((json) => Task.fromJson(json)).toList();
+        } else {
+          throw Exception(body['msg'] ?? '获取失败');
+        }
+      } else {
+        throw Exception('HTTP Error: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
 }

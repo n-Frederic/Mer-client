@@ -30,10 +30,9 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
     _loadAllTasksForCalendar();
   }
 
-  // --- 数据加载逻辑 ---
-  // 注意：理想情况下，后端应提供按 StartDate 和 EndDate 查询的接口
-  // 目前暂时复用列表接口，一次性加载较大数量，确保日历有数据点
+  // --- 修改后的数据加载逻辑 ---
   Future<void> _loadAllTasksForCalendar() async {
+    // 如果正在加载，或者是未挂载状态，则不执行
     if (_isLoading) return;
 
     setState(() {
@@ -41,16 +40,23 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
     });
 
     try {
-      // 暂时加载前 100 条“我的任务”用于填充日历
-      // TODO: 替换为 TaskService.fetchCalendarTasks(start, end)
-      TaskListResponse response = await TaskService.fetchPersonalTasks(
-        page: 1,
-        pageSize: 100,
-      );
+      // 1. 计算时间范围
+      // 获取当前视图所在月份的第一天
+      final firstDayOfMonth = DateTime(_currentDate.year, _currentDate.month, 1);
+      // 获取下个月的第0天（即本月的最后一天）
+      final lastDayOfMonth = DateTime(_currentDate.year, _currentDate.month + 1, 0);
+
+      // 2. 扩大范围：前后各加 7 天缓冲
+      // 这样做是为了在“周视图”切换到月份边缘时，依然能看到跨月的任务
+      final startDate = firstDayOfMonth.subtract(Duration(days: 7));
+      final endDate = lastDayOfMonth.add(Duration(days: 7));
+
+      // 3. 调用新接口
+      final tasks = await TaskService.fetchCalendarTasks(startDate, endDate);
 
       if (mounted) {
         setState(() {
-          _tasks = response.tasks;
+          _tasks = tasks; // 替换当前任务列表
           _isLoading = false;
         });
       }
@@ -60,6 +66,7 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
           _isLoading = false;
         });
         print('日历数据加载失败: $e');
+        // 可选：ScaffoldMessenger.of(context).showSnackBar(...)
       }
     }
   }
@@ -247,7 +254,12 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
         // 左箭头
         IconButton(
           icon: Icon(Icons.chevron_left, color: Color(0xFFFF8C42)),
-          onPressed: () => setState(() => _currentDate = DateTime(_currentDate.year, _currentDate.month - 1)),
+          onPressed: () {
+            setState(() {
+              _currentDate = DateTime(_currentDate.year, _currentDate.month - 1);
+            });
+            _loadAllTasksForCalendar();
+          },
         ),
 
         // 中间：点击区域
@@ -282,7 +294,14 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
         // 右箭头
         IconButton(
           icon: Icon(Icons.chevron_right, color: Color(0xFFFF8C42)),
-          onPressed: () => setState(() => _currentDate = DateTime(_currentDate.year, _currentDate.month + 1)),
+          onPressed: () {
+            setState(() {
+              // 1. 更新日期到下个月
+              _currentDate = DateTime(_currentDate.year, _currentDate.month + 1);
+            });
+            // 2. 重新加载新月份的数据
+            _loadAllTasksForCalendar();
+          },
         ),
       ],
     );
@@ -376,6 +395,7 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
         _currentDate = picked;
         _selectedDay = picked;
       });
+      _loadAllTasksForCalendar();
     }
   }
 
@@ -522,8 +542,9 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
     if (picked != null) {
       setState(() {
         _currentDate = picked; // 更新当前日期，周视图会自动计算该日期所在的周
-        _selectedDay = picked; // 同步选中的日子
+        _selectedDay = picked;// 同步选中的日子
       });
+      _loadAllTasksForCalendar();
     }
   }
 
@@ -586,8 +607,7 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
     );
   }
 
-  // --- 日视图逻辑 ---
-  // --- 日视图逻辑 ---
+  // --- 日视图逻辑  ---
   Widget _buildDayView() {
     // 目标日期跟随 _selectedDay
     final targetDate = _selectedDay;
@@ -606,6 +626,8 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
           _selectedDay = picked;
           _currentDate = picked; // 同步更新月视图的月份
         });
+        // 1. 【关键修改】选完日期后，重新加载数据（防止跳到了其他月份没数据）
+        _loadAllTasksForCalendar();
       }
     }
 
@@ -613,10 +635,10 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
       padding: EdgeInsets.all(16),
       child: Column(
         children: [
-          // 修改后的头部卡片：带左右切换 + 点击选择
+          // 头部卡片：带左右切换 + 点击选择
           Container(
             width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: 24, horizontal: 8), // 调整内边距
+            padding: EdgeInsets.symmetric(vertical: 24, horizontal: 8),
             decoration: BoxDecoration(
               gradient: LinearGradient(colors: [Color(0xFFFF8C42), Color(0xFFFF6B9D)]),
               borderRadius: BorderRadius.circular(24),
@@ -633,8 +655,10 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
                   onPressed: () {
                     setState(() {
                       _selectedDay = _selectedDay.subtract(Duration(days: 1));
-                      _currentDate = _selectedDay;
+                      _currentDate = _selectedDay; // 确保月份基准也跟着变
                     });
+                    // 2. 【关键修改】切到前一天后，刷新数据（防止跨月）
+                    _loadAllTasksForCalendar();
                   },
                 ),
 
@@ -662,7 +686,7 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
                               style: TextStyle(fontSize: 18, color: Colors.white.withOpacity(0.9)),
                             ),
                             SizedBox(width: 4),
-                            Icon(Icons.edit_calendar, color: Colors.white70, size: 16), // 小图标提示可点
+                            Icon(Icons.edit_calendar, color: Colors.white70, size: 16),
                           ],
                         ),
                         SizedBox(height: 8),
@@ -693,8 +717,10 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
                   onPressed: () {
                     setState(() {
                       _selectedDay = _selectedDay.add(Duration(days: 1));
-                      _currentDate = _selectedDay;
+                      _currentDate = _selectedDay; // 确保月份基准也跟着变
                     });
+                    // 3. 【关键修改】切到后一天后，刷新数据（防止跨月）
+                    _loadAllTasksForCalendar();
                   },
                 ),
               ],
@@ -703,7 +729,7 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
 
           SizedBox(height: 24),
 
-          // 下方任务列表 (保持不变)
+          // 下方任务列表
           if (dayTasks.isEmpty)
             _buildEmptyState('今天没有任务', '享受轻松的一天吧！')
           else
