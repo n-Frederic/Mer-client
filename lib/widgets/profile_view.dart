@@ -153,10 +153,16 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
                     '个人信息',
                     '查看和编辑个人资料',
                     Color(0xFF4ECDC4),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => PersonalInfoScreen()),
-                    ),
+                    onTap: () async {
+                      // 1. 等待跳转页面返回 (await 会在这里暂停，直到从 PersonalInfoScreen 回来)
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => PersonalInfoScreen()),
+                      );
+
+                      // 2. 页面返回后，执行刷新
+                      _loadUserProfile();
+                    },
                   ),
                   _buildMenuItem(
                     Icons.lock_reset, // (锁图标)
@@ -254,6 +260,13 @@ class _ProfileViewState extends State<ProfileView> with TickerProviderStateMixin
         ),
       ),
     );
+  }
+
+  void _loadUserProfile() {
+    setState(() {
+      // 重新赋值 Future，触发 FutureBuilder 重新运行
+      _profileFuture = ProfileService.getUserProfile();
+    });
   }
 
   void _changePassword() {

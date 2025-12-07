@@ -139,8 +139,8 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
   // 格式化日期为后端需要的 LocalDateTime 格式
   String _formatDateForBackend(DateTime? date) {
     if (date == null) return '';
-    // 后端期望 LocalDateTime 格式：YYYY-MM-DDTHH:mm:ss
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}T00:00:00';
+    // 后端期望 LocalDateTime 格式：YYYY-MM-DD
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -207,7 +207,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _saveUserData, // (这个方法我们之前已修复)
+                  onPressed: _saveUserData,
                   style: ElevatedButton.styleFrom(
                     padding: EdgeInsets.symmetric(vertical: 16),
                     backgroundColor: Color(0xFFFF8C42),
@@ -423,60 +423,45 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
   }
 
   Future<void> _saveUserData() async {
-    setState(() {
-      _isLoading = true;
-    });
+    // 1. 前端校验 (保持之前加的)
+    if (_selectedGender == '未选择' || _selectedBirthDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('请填写完整信息'), backgroundColor: Colors.red));
+      return;
+    }
+
+    setState(() { _isLoading = true; });
 
     try {
-      // (保留 team_id 的 API 缺陷处理)
-      int? teamId = _userData['team_id'];
-      if (teamId == null) {
-        print("警告: [saveUserData] 'team_id' 在 /api/user/profile 响应中未找到。");
-        print("         将回退到 'team_id: 1'。这可能导致数据错误。");
-        print("         后端 GET /api/user/profile 应返回 team_id。");
-        teamId = 1; // (回退)
-      }
+      // 2. 格式化日期 (关键修复：只取 YYYY-MM-DD)
+      String formattedDate = '${_selectedBirthDate!.year}-${_selectedBirthDate!.month.toString().padLeft(2, '0')}-${_selectedBirthDate!.day.toString().padLeft(2, '0')}';
 
+      // 3. 构建请求数据
       final profileData = {
         'phone': _phoneController.text,
-        'gender': _convertGenderToBackendFormat(_selectedGender),
         'bio': _bioController.text,
-        'birth_date': _formatDateForBackend(_selectedBirthDate),
-        'team_id': teamId,
-        'role_id': _userData['role_id'] ?? 1,
+        'gender': _convertGenderToBackendFormat(_selectedGender),
+        'birth_date': formattedDate,
+        'role_id': int.tryParse(_userData['role_id'].toString()) ?? 1,
+        'name': _nameController.text,
+        'email': _emailController.text,
       };
 
-      print('📦 准备发送的数据: $profileData');
+      print('准备发送的数据: $profileData');
 
       final success = await ProfileService.updateUserProfile(profileData);
 
       if (success) {
-        // 成功后，重新加载数据以确保同步
         await _loadUserDataFromBackend();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ 个人信息已保存'),
-            backgroundColor: Color(0xFF4ECDC4),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('✅ 个人信息已保存'), backgroundColor: Color(0xFF4ECDC4)));
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ 保存失败: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ 保存失败: $e'), backgroundColor: Colors.red));
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) setState(() { _isLoading = false; });
     }
   }
 
