@@ -32,7 +32,13 @@ class _TaskReportViewState extends State<TaskReportView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('提交工作报告'),
+        title: Text(
+          '提交工作报告',
+          style: TextStyle(
+            color: Color(0xFF333333),
+            fontSize: 20,
+          ),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -62,33 +68,39 @@ class _TaskReportViewState extends State<TaskReportView> {
   }
 
   Widget _buildTaskInfo() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '任务信息',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF333333),
+    return Container(
+      width: double.infinity,
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '任务信息',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF333333),
+                ),
               ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              widget.task.title,
-              style: TextStyle(fontSize: 14, color: Color(0xFF666666)),
-            ),
-            SizedBox(height: 4),
-            Text(
-              widget.task.description,
-              style: TextStyle(fontSize: 12, color: Color(0xFF999999)),
-            ),
-          ],
+              SizedBox(height: 8),
+              Text(
+                widget.task.title,
+                style: TextStyle(fontSize: 14, color: Color(0xFF666666)),
+                // 可选：如果文字很长，强制左对齐
+                textAlign: TextAlign.left,
+              ),
+              SizedBox(height: 4),
+              Text(
+                widget.task.description,
+                style: TextStyle(fontSize: 12, color: Color(0xFF999999)),
+                textAlign: TextAlign.left,
+              ),
+            ],
+          ),
         ),
       ),
     );
