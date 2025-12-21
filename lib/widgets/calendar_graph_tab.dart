@@ -626,7 +626,6 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
           _selectedDay = picked;
           _currentDate = picked; // 同步更新月视图的月份
         });
-        // 1. 【关键修改】选完日期后，重新加载数据（防止跳到了其他月份没数据）
         _loadAllTasksForCalendar();
       }
     }
@@ -657,7 +656,6 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
                       _selectedDay = _selectedDay.subtract(Duration(days: 1));
                       _currentDate = _selectedDay; // 确保月份基准也跟着变
                     });
-                    // 2. 【关键修改】切到前一天后，刷新数据（防止跨月）
                     _loadAllTasksForCalendar();
                   },
                 ),
@@ -857,7 +855,6 @@ class _CalendarGraphTabState extends State<CalendarGraphTab> {
   }
 
   Widget _buildStatusChip(TaskStatus status) {
-    // 简化版 Chip
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(color: _getStatusColor(status).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),

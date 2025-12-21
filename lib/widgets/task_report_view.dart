@@ -90,7 +90,6 @@ class _TaskReportViewState extends State<TaskReportView> {
               Text(
                 widget.task.title,
                 style: TextStyle(fontSize: 14, color: Color(0xFF666666)),
-                // 可选：如果文字很长，强制左对齐
                 textAlign: TextAlign.left,
               ),
               SizedBox(height: 4),
@@ -357,6 +356,9 @@ class _TaskReportViewState extends State<TaskReportView> {
         SizedBox(height: 8),
         TextField(
           controller: _contentController,
+          onChanged: (value) {
+            setState(() {});
+          },
           decoration: InputDecoration(
             hintText: '请输入今天完成的工作内容...',
             border: OutlineInputBorder(),
