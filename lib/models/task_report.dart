@@ -37,20 +37,13 @@ class TaskReport {
   });
 
   factory TaskReport.fromJson(Map<String, dynamic> json) {
-    // 处理附件字段
-    List<String> attachments = [];
-    if (json['attachments'] != null) {
-      if (json['attachments'] is String) {
-        try {
-          final List<dynamic> attachmentList = jsonDecode(json['attachments']);
-          attachments = attachmentList.map((e) => e.toString()).toList();
-        } catch (e) {
-          attachments = [json['attachments']];
-        }
-      } else if (json['attachments'] is List) {
-        attachments = (json['attachments'] as List).map((e) => e.toString()).toList();
-      }
-    }
+    // 处理附件字段 - 添加智能解析
+    List<String> attachments = _parseAttachments(json['attachments']);
+
+    print('📊 附件解析结果:');
+    print('  原始数据: ${json['attachments']}');
+    print('  解析后: $attachments');
+    print('  数量: ${attachments.length}');
 
     // 处理状态字段
     ReportStatus status = ReportStatus.submitted;
@@ -95,6 +88,117 @@ class TaskReport {
       rejectedBy: json['rejected_by']?.toString(),
       rejectedAt: parseDateTime(json['rejected_at']),
     );
+  }
+
+  /// 智能解析附件数据
+  static List<String> _parseAttachments(dynamic attachmentsData) {
+    if (attachmentsData == null) {
+      return [];
+    }
+
+    print('🔍 解析附件数据: $attachmentsData');
+    print('🔍 数据类型: ${attachmentsData.runtimeType}');
+
+    // 1. 如果是字符串
+    if (attachmentsData is String) {
+      final str = attachmentsData.trim();
+
+      // 空值检查
+      if (str.isEmpty || str == '[]' || str == 'null' || str == '""') {
+        return [];
+      }
+
+      // 情况1: 竖线分隔 (您数据库的格式)
+      if (str.contains('|')) {
+        final List<String> urls = str.split('|')
+            .map((url) => url.trim())
+            .where((url) => url.isNotEmpty)
+            .toList();
+        print('✅ 竖线分隔解析: $urls');
+        return urls;
+      }
+
+      // 情况2: JSON数组字符串
+      if (str.startsWith('[') && str.endsWith(']')) {
+        try {
+          // 移除方括号
+          var content = str.substring(1, str.length - 1);
+          // 移除引号和空格
+          content = content.replaceAll('"', '').replaceAll("'", '').trim();
+
+          if (content.isEmpty) {
+            return [];
+          }
+
+          // 按逗号分割
+          final urls = content.split(',').map((url) => url.trim()).toList();
+          print('✅ JSON数组解析: $urls');
+          return urls;
+        } catch (e) {
+          print('❌ JSON解析失败: $e');
+          return [str];
+        }
+      }
+
+      // 情况3: 逗号分隔
+      if (str.contains(',')) {
+        final List<String> urls = str.split(',')
+            .map((url) => url.trim())
+            .where((url) => url.isNotEmpty)
+            .toList();
+        print('✅ 逗号分隔解析: $urls');
+        return urls;
+      }
+
+      // 情况4: 单个URL
+      print('✅ 单个URL: [$str]');
+      return [str];
+    }
+
+    // 2. 如果是数组
+    if (attachmentsData is List) {
+      final List<String> urls = [];
+      for (var item in attachmentsData) {
+        if (item is String) {
+          urls.add(item);
+        } else {
+          urls.add(item.toString());
+        }
+      }
+      print('✅ 数组格式: $urls');
+      return urls;
+    }
+
+    // 3. 其他类型
+    print('❌ 无法解析的类型: ${attachmentsData.runtimeType}');
+    return [];
+  }
+
+  /// 判断是否为图片
+  static bool isImage(String url) {
+    try {
+      final lowerUrl = url.toLowerCase();
+      return lowerUrl.endsWith('.jpg') ||
+          lowerUrl.endsWith('.jpeg') ||
+          lowerUrl.endsWith('.png') ||
+          lowerUrl.endsWith('.gif') ||
+          lowerUrl.endsWith('.bmp') ||
+          lowerUrl.endsWith('.webp') ||
+          lowerUrl.contains('.jpg') ||
+          lowerUrl.contains('.jpeg') ||
+          lowerUrl.contains('.png');
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// 从URL提取文件名
+  static String getFileName(String url) {
+    try {
+      return url.split('/').last;
+    } catch (e) {
+      return url;
+    }
   }
 
   Map<String, dynamic> toJson() {

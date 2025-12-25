@@ -6,6 +6,7 @@ import '../models/task_report.dart';
 import '../services/task_report_service.dart';
 import '../services/auth_service.dart';
 
+
 class TaskReportDetailView extends StatefulWidget {
   final TaskReport report;
   final String taskId;
@@ -37,28 +38,68 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
     _imageAttachments.clear();
     _otherAttachments.clear();
 
+    print('📦 === 开始分类附件 ===');
+    print('📦 报告ID: ${widget.report.id}');
+    print('📦 任务ID: ${widget.taskId}');
+    print('📦 原始附件数据: ${widget.report.attachments}');
+    print('📦 附件类型: ${widget.report.attachments.runtimeType}');
+    print('📦 附件长度: ${widget.report.attachments.length}');
+
+    // 检查每个附件
     for (final attachment in widget.report.attachments) {
-      if (_isImageFile(attachment)) {
-        _imageAttachments.add(attachment);
+      print('🔍 处理附件: $attachment');
+      print('🔍 附件类型: ${attachment.runtimeType}');
+
+      // 检查是否是有效的URL
+      if (attachment is String && attachment.isNotEmpty) {
+        if (_isImageFile(attachment)) {
+          _imageAttachments.add(attachment);
+          print('✅ 识别为图片: $attachment');
+        } else {
+          _otherAttachments.add(attachment);
+          print('📄 识别为其他文件: $attachment');
+        }
       } else {
-        _otherAttachments.add(attachment);
+        print('⚠️ 跳过无效附件: $attachment');
       }
     }
+
+    print('📊 分类结果:');
+    print('📷 图片附件 (${_imageAttachments.length}): $_imageAttachments');
+    print('📄 其他附件 (${_otherAttachments.length}): $_otherAttachments');
   }
 
 // 在 _prepareImageUrls 方法中确保使用正确的 URL
   void _prepareImageUrls() async {
-    final authToken = await AuthService.getSavedToken();
-    if (authToken != null) {
-      for (final imageUrl in _imageAttachments) {
-        final fileName = _getFileName(imageUrl);
-        final fullUrl = '${TaskReportService.baseUrl}/files/${widget.taskId}/$fileName';
-        _imageUrlsWithAuth[imageUrl] = fullUrl;
-        print('🖼️ 图片URL: $fullUrl'); // 添加调试信息
+    _imageUrlsWithAuth.clear();
+
+    print('🔄 === 准备图片URL ===');
+    print('🔄 图片附件数量: ${_imageAttachments.length}');
+
+    // 方案1: 直接使用COS URL（推荐）
+    bool useDirectCosUrl = true; // 设为true直接访问COS，false通过代理
+
+    for (final imageUrl in _imageAttachments) {
+      if (useDirectCosUrl) {
+        // 直接使用COS URL
+        _imageUrlsWithAuth[imageUrl] = imageUrl;
+        print('🌐 直接使用COS URL: $imageUrl');
+      } else {
+        // 通过后端代理（需要认证）
+        final authToken = await AuthService.getSavedToken();
+        if (authToken != null) {
+          final fileName = _getFileName(imageUrl);
+          final proxyUrl = '${TaskReportService.baseUrl}/files/${widget.taskId}/$fileName';
+          _imageUrlsWithAuth[imageUrl] = proxyUrl;
+          print('🔗 使用代理URL: $proxyUrl');
+        }
       }
-      if (mounted) setState(() {});
     }
+
+    print('✅ 图片URL准备完成，共 ${_imageUrlsWithAuth.length} 张图片');
+    if (mounted) setState(() {});
   }
+
 
   bool _isImageFile(String filePath) {
     final extension = filePath.toLowerCase().split('.').last;
@@ -69,19 +110,29 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
     return filePath.split('/').last;
   }
 
-// 修改下载方法中的 URL 生成
   Future<void> _downloadAttachment(String fileUrl) async {
     try {
-      final authToken = await AuthService.getSavedToken();
-      if (authToken == null) {
-        throw Exception('用户未认证');
+      print('📥 开始下载文件: $fileUrl');
+
+      // 检查是否是COS URL
+      bool isCosUrl = fileUrl.contains('cos.myqcloud.com');
+
+      String downloadUrl = fileUrl;
+      String fileName = _getFileName(fileUrl);
+
+      if (!isCosUrl) {
+        // 如果是相对路径，通过代理下载
+        final authToken = await AuthService.getSavedToken();
+        if (authToken == null) {
+          throw Exception('用户未认证');
+        }
+        downloadUrl = '${TaskReportService.baseUrl}/files/${widget.taskId}/$fileName';
       }
 
-      final fileName = _getFileName(fileUrl);
-      // 使用新的文件服务 URL
-      final fullUrl = '${TaskReportService.baseUrl}/files/${widget.taskId}/$fileName';
-
-      print('📥 开始下载文件: $fullUrl');
+      print('📥 下载信息:');
+      print('   原始URL: $fileUrl');
+      print('   下载URL: $downloadUrl');
+      print('   文件名: $fileName');
 
       // 显示文件下载对话框
       showDialog(
@@ -96,11 +147,13 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
               SizedBox(height: 8),
               Text('类型: ${_getFileTypeDescription(fileUrl)}'),
               SizedBox(height: 8),
-              Text('文件链接:'),
+              Text('文件大小: 未知'),
+              SizedBox(height: 8),
+              Text('下载链接:'),
               SizedBox(height: 4),
               SelectableText(
-                fullUrl,
-                style: TextStyle(fontSize: 12, color: Colors.blue),
+                downloadUrl,
+                style: TextStyle(fontSize: 10, color: Colors.blue),
               ),
             ],
           ),
@@ -112,14 +165,15 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
+                // 在实际应用中，这里可以使用url_launcher打开链接
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('文件链接已准备'),
+                    content: Text('已准备下载链接'),
                     backgroundColor: Colors.blue,
                   ),
                 );
               },
-              child: Text('确定'),
+              child: Text('复制链接'),
             ),
           ],
         ),
@@ -135,6 +189,8 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
       );
     }
   }
+
+
   // 获取文件类型图标
   IconData _getFileIcon(String filePath) {
     final extension = filePath.toLowerCase().split('.').last;
@@ -397,13 +453,44 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
   }
 
   // 构建网络图片组件
-  // 构建网络图片组件
-  Widget _buildNetworkImage(String imageUrl, String attachment) {
-    final fileName = _getFileName(attachment);
-    final fullImageUrl = '${TaskReportService.baseUrl}/files/${widget.taskId}/$fileName';
+  Widget _buildNetworkImage(String originalUrl, String attachment) {
+    final displayUrl = _imageUrlsWithAuth[originalUrl] ?? originalUrl;
 
-    print('🖼️ 加载图片: $fullImageUrl');
+    print('🖼️ 加载图片:');
+    print('   原始URL: $originalUrl');
+    print('   显示URL: $displayUrl');
 
+    // 检查是否是直接COS URL（包含cos.myqcloud.com）
+    bool isDirectCosUrl = displayUrl.contains('cos.myqcloud.com') ||
+        displayUrl.contains('cos.ap-beijing.myqcloud.com');
+
+    if (isDirectCosUrl) {
+      print('✅ 直接访问COS图片');
+      return _buildDirectCosImage(displayUrl);
+    } else {
+      print('🔗 通过代理访问图片');
+      return _buildProxyImage(displayUrl);
+    }
+  }
+
+  // 直接访问COS图片（不需要认证）
+  Widget _buildDirectCosImage(String imageUrl) {
+    return CachedNetworkImage(
+      imageUrl: imageUrl,
+      fit: BoxFit.cover,
+      placeholder: (context, url) => Center(
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+      errorWidget: (context, url, error) {
+        print('❌ COS图片加载失败: $error');
+        print('❌ URL: $url');
+        return _buildErrorWidget();
+      },
+    );
+  }
+
+// 通过代理访问图片（需要认证）
+  Widget _buildProxyImage(String imageUrl) {
     return FutureBuilder<String?>(
       future: AuthService.getSavedToken(),
       builder: (context, snapshot) {
@@ -413,22 +500,13 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
 
         final token = snapshot.data;
         if (token == null) {
-          print('❌ Token为空');
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error, color: Colors.red),
-                SizedBox(height: 4),
-                Text('认证失败', style: TextStyle(fontSize: 10)),
-              ],
-            ),
-          );
+          print('❌ Token为空，无法加载代理图片');
+          return _buildErrorWidget();
         }
 
-        print('✅ 使用Token加载图片: $fullImageUrl');
+        print('✅ 使用Token加载代理图片: $imageUrl');
         return CachedNetworkImage(
-          imageUrl: fullImageUrl,
+          imageUrl: imageUrl,
           httpHeaders: {
             'Authorization': 'Bearer $token',
           },
@@ -437,24 +515,29 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
           errorWidget: (context, url, error) {
-            print('❌ 图片加载失败: $url');
-            print('❌ 错误类型: ${error.runtimeType}');
-            print('❌ 错误信息: $error');
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.broken_image, color: Colors.grey),
-                  SizedBox(height: 4),
-                  Text('加载失败', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                ],
-              ),
-            );
+            print('❌ 代理图片加载失败: $error');
+            print('❌ URL: $url');
+            return _buildErrorWidget();
           },
         );
       },
     );
   }
+
+  Widget _buildErrorWidget() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.broken_image, color: Colors.grey),
+          SizedBox(height: 4),
+          Text('加载失败', style: TextStyle(fontSize: 10, color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+
+
   // 其他附件显示
   Widget _buildOtherAttachments() {
     return Card(
@@ -533,112 +616,162 @@ class _TaskReportDetailViewState extends State<TaskReportDetailView> {
   }
 
   // 图片预览
-  // 图片预览
   void _showImagePreview(String imageUrl, int index) {
-    final fileName = _getFileName(imageUrl);
-    final fullUrl = '${TaskReportService.baseUrl}/files/${widget.taskId}/$fileName';
+    final displayUrl = _imageUrlsWithAuth[imageUrl] ?? imageUrl;
 
-    print('🔍 图片预览URL: $fullUrl');
+    print('🔍 图片预览:');
+    print('   原始URL: $imageUrl');
+    print('   显示URL: $displayUrl');
+    print('   索引: $index');
+
+    bool isDirectCosUrl = displayUrl.contains('cos.myqcloud.com');
 
     showDialog(
       context: context,
-      builder: (context) => FutureBuilder<String?>(
-        future: AuthService.getSavedToken(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Dialog(
-              child: Container(
-                width: 300,
-                height: 300,
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            );
-          }
+      builder: (context) => isDirectCosUrl
+          ? _buildDirectCosPreview(displayUrl)
+          : _buildProxyPreview(displayUrl),
+    );
+  }
 
-          final token = snapshot.data;
-          if (token == null) {
-            return AlertDialog(
-              title: Text('错误'),
-              content: Text('认证失败，无法加载图片'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text('关闭'),
-                ),
-              ],
-            );
-          }
-
-          return Dialog(
-            insetPadding: EdgeInsets.all(20),
-            child: Container(
-              width: double.infinity,
-              height: 400,
-              child: Column(
+  Widget _buildDirectCosPreview(String imageUrl) {
+    return Dialog(
+      insetPadding: EdgeInsets.all(20),
+      child: Container(
+        width: double.infinity,
+        height: 400,
+        child: Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.all(8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Padding(
-                    padding: EdgeInsets.all(8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '图片预览',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.close),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: CachedNetworkImage(
-                      imageUrl: fullUrl,
-                      httpHeaders: {
-                        'Authorization': 'Bearer $token',
-                      },
-                      fit: BoxFit.contain,
-                      progressIndicatorBuilder: (context, url, progress) => Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CircularProgressIndicator(
-                              value: progress.progress,
-                            ),
-                            SizedBox(height: 8),
-                            Text('加载中...'),
-                          ],
-                        ),
-                      ),
-                      errorWidget: (context, url, error) {
-                        print('❌ 预览图片加载失败: $error');
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.error, color: Colors.red, size: 48),
-                              SizedBox(height: 16),
-                              Text('图片加载失败', style: TextStyle(fontSize: 16)),
-                              SizedBox(height: 8),
-                              Text(
-                                'URL: ${fullUrl.split('/').last}',
-                                style: TextStyle(fontSize: 12, color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+                  Text('图片预览', style: TextStyle(fontWeight: FontWeight.bold)),
+                  IconButton(
+                    icon: Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
             ),
-          );
-        },
+            Expanded(
+              child: CachedNetworkImage(
+                imageUrl: imageUrl,
+                fit: BoxFit.contain,
+                placeholder: (context, url) => Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 8),
+                      Text('加载中...'),
+                    ],
+                  ),
+                ),
+                errorWidget: (context, url, error) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error, color: Colors.red, size: 48),
+                        SizedBox(height: 16),
+                        Text('图片加载失败'),
+                        SizedBox(height: 8),
+                        SelectableText(
+                          imageUrl,
+                          style: TextStyle(fontSize: 10, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  Widget _buildProxyPreview(String imageUrl) {
+    return FutureBuilder<String?>(
+      future: AuthService.getSavedToken(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Dialog(
+            child: Container(
+              width: 300,
+              height: 300,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        }
+
+        final token = snapshot.data;
+        if (token == null) {
+          return AlertDialog(
+            title: Text('错误'),
+            content: Text('认证失败'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('关闭'),
+              ),
+            ],
+          );
+        }
+
+        return Dialog(
+          insetPadding: EdgeInsets.all(20),
+          child: Container(
+            width: double.infinity,
+            height: 400,
+            child: Column(
+              children: [
+                Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('图片预览', style: TextStyle(fontWeight: FontWeight.bold)),
+                      IconButton(
+                        icon: Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    httpHeaders: {'Authorization': 'Bearer $token'},
+                    fit: BoxFit.contain,
+                    placeholder: (context, url) => Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                    errorWidget: (context, url, error) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.error, color: Colors.red, size: 48),
+                            SizedBox(height: 16),
+                            Text('图片加载失败'),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   String _formatDetailedTime(DateTime timestamp) {
     return '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')} ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}:${timestamp.second.toString().padLeft(2, '0')}';
   }
