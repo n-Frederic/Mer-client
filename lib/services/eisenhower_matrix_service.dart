@@ -55,16 +55,13 @@ class EisenhowerMatrixService {
       print('📡 响应状态码: ${response.statusCode}');
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
-        print('✅ 获取公司重要任务成功: ${data['tasks']}');
         return List<String>.from(data['tasks'] ?? []);
       } else if (response.statusCode == 401) {
-        print('❌ 认证失败，token可能无效');
         throw Exception('用户认证失败，请重新登录');
       } else {
         throw Exception('加载公司重要任务失败: ${response.statusCode}');
       }
     } catch (e) {
-      print('💥 获取公司重要任务异常: $e');
       rethrow;
     }
   }
@@ -74,28 +71,22 @@ class EisenhowerMatrixService {
     try {
       final headers = await _getAuthHeaders();
 
-      print('🚀 请求个人任务，用户ID: $userId');
       final response = await client.get(
         Uri.parse('$baseUrl/personal-task'), //请求个人任务接口
         headers: headers,
       );
 
-      print('📡 响应状态码: ${response.statusCode}');
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
-        print('✅ 获取个人任务成功: ${data['personal_tasks']}');
         return List<String>.from(data['personal_tasks'] ?? []);
       } else if (response.statusCode == 401) {
-        print('❌ 认证失败，token可能无效');
         throw Exception('用户认证失败，请重新登录');
       } else if (response.statusCode == 404) {
-        print('ℹ️ 未找到个人任务');
         return [];
       } else {
         throw Exception('加载个人任务失败: ${response.statusCode}');
       }
     } catch (e) {
-      print('💥 获取个人任务异常: $e');
       rethrow;
     }
   }
@@ -103,7 +94,6 @@ class EisenhowerMatrixService {
   // 获取公司派发任务
   Future<List<String>> getCompanyAssignedTasks({String? priority}) async {
     try {
-      print('🚀 请求公司派发任务，优先级: $priority');
 
       // 使用 TaskService 接口
       final response = await TaskService.fetchScopedTasks(
@@ -113,8 +103,6 @@ class EisenhowerMatrixService {
         status: 'pending', // 获取待处理的任务
       );
 
-      print('📡 获取到 ${response.tasks.length} 个任务');
-
       // 将任务对象转换为字符串列表
       final tasks = response.tasks.map((task) {
         // 构建任务显示字符串
@@ -123,7 +111,6 @@ class EisenhowerMatrixService {
         return parts.join(' · ');
       }).toList();
 
-      print('✅ 获取公司派发任务成功: ${tasks.length} 个任务');
       return tasks;
     } catch (e) {
       print('💥 获取公司派发任务异常: $e');
@@ -137,25 +124,20 @@ class EisenhowerMatrixService {
   // 创建个人任务
   Future<List<String>> createPersonalTasks(int userId, List<String> tasks) async {
     try {
-      // === 修改：使用认证头 ===
       final headers = await _getAuthHeaders();
 
-      print('🚀 创建个人任务，用户ID: $userId, 任务: $tasks');
       final response = await client.post(
         Uri.parse('$baseUrl/personal-task'),
-        headers: headers, // === 修改：使用认证头 ===
+        headers: headers,
         body: json.encode({
           'personal_tasks': tasks,
         }),
       );
 
-      print('📡 响应状态码: ${response.statusCode}');
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
-        print('✅ 创建个人任务成功: ${data['created_personal_tasks']}');
         return List<String>.from(data['created_personal_tasks'] ?? tasks);
       } else if (response.statusCode == 401) {
-        print('❌ 认证失败，token可能无效');
         throw Exception('用户认证失败，请重新登录');
       } else {
         throw Exception('Failed to create personal tasks: ${response.statusCode}');
@@ -232,16 +214,13 @@ class EisenhowerMatrixService {
       // === 修改：使用认证头 ===
       final headers = await _getAuthHeaders();
 
-      print('🚀 根据状态筛选任务，状态: $status');
       final response = await client.get(
         Uri.parse('$baseUrl/company-tasks/by-status?status=$status'),
-        headers: headers, // === 修改：使用认证头 ===
+        headers: headers,
       );
 
-      print('📡 响应状态码: ${response.statusCode}');
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
-        print('✅ 根据状态筛选任务成功');
         return data;
       } else if (response.statusCode == 401) {
         print('❌ 认证失败，token可能无效');
@@ -260,7 +239,6 @@ class EisenhowerMatrixService {
     try {
       final headers = await _getAuthHeaders();
 
-      print('🚀 请求个人日志列表...');
       final response = await client.get(
         Uri.parse('$baseUrl/journals/').replace(queryParameters: {
           'page': '1',
@@ -269,7 +247,6 @@ class EisenhowerMatrixService {
         headers: headers,
       );
 
-      print('📡 个人日志响应状态码: ${response.statusCode}');
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
         final List<dynamic> journalList = data['list'] ?? [];
@@ -294,20 +271,16 @@ class EisenhowerMatrixService {
 
           return parts.join(' · ');
         }).toList();
-
-        print('✅ 获取个人日志成功: ${logs.length} 条日志');
         return logs;
       } else if (response.statusCode == 401) {
-        print('❌ 认证失败，token可能无效');
         throw Exception('用户认证失败，请重新登录');
       } else if (response.statusCode == 404) {
-        print('ℹ️ 未找到个人日志');
         return [];
       } else {
         throw Exception('加载个人日志失败: ${response.statusCode}');
       }
     } catch (e) {
-      print('💥 获取个人日志异常: $e');
+      print(' 获取个人日志异常: $e');
       // 返回默认数据作为降级方案
       return [
         "项目进展汇报 · 📅2024-01-15",
