@@ -20,9 +20,6 @@ class TaskReportService {
 
     final uri = Uri.parse('$baseUrl/tasks/$taskId/reports');
 
-    print('🔄 [fetchTaskReportsByUser] 获取任务报告');
-    print('   📍 请求URL: $uri');
-
     try {
       final response = await http.get(
         uri,
