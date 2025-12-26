@@ -226,7 +226,7 @@ class EisenhowerMatrixService {
         print('❌ 认证失败，token可能无效');
         throw Exception('用户认证失败，请重新登录');
       } else {
-        throw Exception('Failed to load tasks by status: ${response.statusCode}');
+        throw Exception('Failed to lcd build/app/outputs/flutter-apk/oad tasks by status: ${response.statusCode}');
       }
     } catch (e) {
       print('💥 根据状态筛选任务异常: $e');
@@ -235,27 +235,39 @@ class EisenhowerMatrixService {
   }
 
   // 获取个人日志
+  // 获取个人日志
   Future<List<String>> getPersonalLogs() async {
     try {
       final headers = await _getAuthHeaders();
 
+      // JSON 返回 "page": 1，说明后端是从 1 开始的
       final response = await client.get(
         Uri.parse('$baseUrl/journals/').replace(queryParameters: {
           'page': '1',
-          'pageSize': '10', // 获取最近10条日志
+          'pageSize': '10',
         }),
         headers: headers,
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
-        final List<dynamic> journalList = data['list'] ?? [];
+        // 1. 解码最外层 JSON
+        final Map<String, dynamic> rootMap = json.decode(utf8.decode(response.bodyBytes));
+
+        // 2. 修正取值路径：先取 data，再取 list
+        final Map<String, dynamic>? dataMap = rootMap['data'];
+        final List<dynamic> journalList = dataMap?['list'] ?? [];
 
         // 将日志对象转换为字符串列表
         final logs = journalList.map((journal) {
-          final title = journal['title']?.toString() ?? '无标题日志';
-          final date = journal['date']?.toString() ?? '';
-          final authorName = journal['authorName']?.toString() ?? '';
+          // 3. 修正字段映射
+          final title = journal['todaySummary']?.toString() ?? '无内容';
+          final date = journal['log_date']?.toString() ?? '';
+
+          // 解析嵌套的 author_info
+          String authorName = '';
+          if (journal['author_info'] != null) {
+            authorName = journal['author_info']['name']?.toString() ?? '';
+          }
 
           List<String> parts = [title];
 
@@ -264,29 +276,26 @@ class EisenhowerMatrixService {
             parts.add('📅$date');
           }
 
-          // 添加作者信息（如果不是当前用户）
+          // 添加作者信息
           if (authorName.isNotEmpty) {
             parts.add('👤$authorName');
           }
 
           return parts.join(' · ');
         }).toList();
+
         return logs;
       } else if (response.statusCode == 401) {
         throw Exception('用户认证失败，请重新登录');
-      } else if (response.statusCode == 404) {
-        return [];
       } else {
         throw Exception('加载个人日志失败: ${response.statusCode}');
       }
     } catch (e) {
-      print(' 获取个人日志异常: $e');
-      // 返回默认数据作为降级方案
+      print('获取个人日志异常: $e');
+      // 降级数据
       return [
-        "项目进展汇报 · 📅2024-01-15",
-        "技术学习总结 · 📅2024-01-14",
-        "团队协作记录 · 📅2024-01-13",
-        "问题解决方案 · 📅2024-01-12"
+        "接口解析失败 · 📅请检查代码",
+        "错误信息 · 👤$e"
       ];
     }
   }
